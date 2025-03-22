@@ -1029,11 +1029,14 @@ def show_student_page():
                 vocab_level = st.session_state.analysis_results['vocab_level']
                         
                 # 단어 빈도 시각화 - 에러 방지를 위한 예외 처리 추가
+                fig = None  # fig 변수를 명시적으로 초기화
                 if vocab_analysis and 'word_freq' in vocab_analysis and vocab_analysis['word_freq']:
                     fig = plot_word_frequency(vocab_analysis['word_freq'])
-            if fig:
-                        st.plotly_chart(fig, use_container_width=True)
-            else:
+                
+                # fig 변수 확인 후 시각화
+                if fig is not None:
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
                         
                         # 어휘 다양성 점수
@@ -1401,10 +1404,13 @@ def show_teacher_page():
                 vocab_level = st.session_state.teacher_analysis_results['vocab_level']
                         
                 # 단어 빈도 시각화 - 에러 방지를 위한 예외 처리 추가
+                fig = None  # fig 변수를 명시적으로 초기화
                 if vocab_analysis and 'word_freq' in vocab_analysis and vocab_analysis['word_freq']:
-                 fig = plot_word_frequency(vocab_analysis['word_freq'])
-                if fig:
-                            st.plotly_chart(fig, use_container_width=True)
+                    fig = plot_word_frequency(vocab_analysis['word_freq'])
+                
+                # fig 변수 확인 후 시각화
+                if fig is not None:
+                    st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
                         
