@@ -622,8 +622,13 @@ def check_grammar(text):
     error_positions = set()
     
     for error in all_errors:
-        position = (error.get('offset', 0), error.get('length', 0))
+        # 일관성을 위해 'length'와 'errorLength' 모두 확인
+        length = error.get('length', error.get('errorLength', 0))
+        position = (error.get('offset', 0), length)
         if position not in error_positions:
+            # 'length'가 없으면 'errorLength'를 'length'로 복사
+            if 'length' not in error and 'errorLength' in error:
+                error['length'] = error['errorLength']
             error_positions.add(position)
             filtered_errors.append(error)
     
@@ -631,147 +636,57 @@ def check_grammar(text):
 
 # 문법 오류 시각화 및 표시를 위한 함수
 def display_grammar_errors(text, errors):
-    """
-    텍스트와 문법 오류 목록을 받아 시각적으로 표시합니다.
-    """
+    """문법 오류를 시각화하여 표시합니다."""
     if not errors:
-        return st.success("문법 오류가 없습니다!")
+        return text, []
     
-    st.subheader("문법 오류 목록")
+    # 오류가 있는 경우 강조 표시를 위한 HTML 생성
+    html_parts = []
+    last_end = 0
+    error_details = []
     
-    error_data = []
-    for error in errors:
-        # 오류 텍스트 추출 개선 - 오류가 있는 경우 안전하게 처리
-        try:
-            error_text = text[error['offset']:error['offset'] + error['errorLength']]
-        except (IndexError, KeyError):
-            error_text = "오류 위치 확인 실패"
-        
-        source = error.get('source', '기본 검사기')
-        message = error.get('message', '')
-        
-        # 수정 제안 처리 개선
-        suggestions = "수정 제안 없음"
+    # 오프셋 기준으로 오류 정렬
+    errors = sorted(errors, key=lambda x: x['offset'])
+    
+    for i, error in enumerate(errors):
+        # 키 오류 방지를 위한 기본값 설정
+        offset = error.get('offset', 0)
+        length = error.get('length', 0)  # 'errorLength'에서 'length'로 변경
+        message = error.get('message', '알 수 없는 오류')
         replacements = error.get('replacements', [])
         
-        # 연속된 공백 오류 처리 개선
-        if "consecutive spaces" in message.lower() or "too many spaces" in message.lower():
-            suggestions = "중복 공백 제거 필요"
-            # 실제 수정 제안 생성 - 공백 하나로 교체
-            if error_text.strip() == '':
-                suggestions = "공백을 하나만 사용하세요"
-        elif replacements:
-            # replacements가 문자열 리스트인 경우
-            if isinstance(replacements, list) and all(isinstance(item, str) for item in replacements):
-                if all(item.strip() == '' for item in replacements):
-                    # 빈 문자열이나 공백만 있는 경우
-                    suggestions = "공백 관련 오류: 적절한 간격으로 수정하세요"
-                else:
-                    suggestions = ", ".join(replacements[:3])
-            # replacements가 딕셔너리나 다른 객체의 리스트인 경우
-            elif isinstance(replacements, list) and len(replacements) > 0:
-                # 첫 3개 항목만 사용하고 문자열로 변환
-                suggestion_items = []
-                for item in replacements[:3]:
-                    if isinstance(item, str):
-                        suggestion_items.append(item)
-                    elif hasattr(item, 'value') and isinstance(item.value, str):
-                        suggestion_items.append(item.value)
-                    elif isinstance(item, dict) and 'value' in item:
-                        suggestion_items.append(str(item['value']))
-                    else:
-                        suggestion_items.append(str(item))
-                
-                if suggestion_items:
-                    suggestions = ", ".join(suggestion_items)
-            # 문자열인 경우 (가능성 낮음)
-            elif isinstance(replacements, str):
-                suggestions = replacements
-            # 기타 예상치 못한 형식
-            else:
-                suggestions = str(replacements)
+        # 오류 앞의 텍스트 추가
+        html_parts.append(text[last_end:offset])
         
-        # 문맥 정보 추가 - 오류 부분 강조 표시
-        context = ""
-        if 'context' in error:
-            context = error['context']
-        elif error_text and len(text) > 0:
-            # 오류 전후 20자 정도 표시
-            start = max(0, error['offset'] - 20)
-            end = min(len(text), error['offset'] + error['errorLength'] + 20)
-            prefix = text[start:error['offset']]
-            highlighted = f"**{error_text}**"  # 마크다운 강조
-            suffix = text[error['offset'] + error['errorLength']:end]
-            context = f"{prefix}{highlighted}{suffix}"
+        # 오류 텍스트 추출
+        error_text = text[offset:offset+length]
         
-        error_data.append({
-            "오류": error_text if error_text.strip() else "(여러 공백)",  # 공백만 있는 경우 특별 처리
-            "오류 내용": error['message'],
-            "수정 제안": suggestions,
-            "검출 도구": source
+        # 오류 번호 생성
+        error_num = i + 1
+        
+        # 오류 텍스트를 강조 표시 (툴팁 포함)
+        html_parts.append(f'<span class="grammar-error" title="오류 {error_num}: {message}" '
+                          f'style="background-color: #ffcccc; text-decoration: underline wavy red;">'
+                          f'{error_text}</span>')
+        
+        # 다음 시작 위치 설정
+        last_end = offset + length
+        
+        # 오류 세부 정보 저장 (사이드바 표시용)
+        error_details.append({
+            "id": error_num,
+            "text": error_text,
+            "message": message,
+            "replacements": replacements
         })
     
-    # 테이블로 오류 표시
-    st.dataframe(pd.DataFrame(error_data))
+    # 마지막 오류 이후의 텍스트 추가
+    html_parts.append(text[last_end:])
     
-    # 오류 문맥 표시 - 더 직관적으로 이해할 수 있도록
-    st.subheader("오류 문맥")
-    for i, error in enumerate(errors):
-        try:
-            error_text = text[error['offset']:error['offset'] + error['errorLength']]
-            # 오류 전후 20자 정도 표시
-            start = max(0, error['offset'] - 20)
-            end = min(len(text), error['offset'] + error['errorLength'] + 20)
-            
-            prefix = text[start:error['offset']]
-            suffix = text[error['offset'] + error['errorLength']:end]
-            
-            # 오류 메시지와 수정 제안
-            message = error.get('message', '')
-            replacements = error.get('replacements', [])
-            
-            # 연속된 공백 오류인 경우 특별 처리
-            if "consecutive spaces" in message.lower() or "too many spaces" in message.lower():
-                suggestions = "중복 공백을 하나의 공백으로 수정하세요"
-            elif replacements and isinstance(replacements, list):
-                if all(isinstance(item, str) for item in replacements):
-                    suggestions = ", ".join(replacements[:3])
-                else:
-                    suggestions = "적절한 대체어로 수정하세요"
-            else:
-                suggestions = "수정 제안 없음"
-            
-            # HTML로 강조 표시 (공백은 특수 처리)
-            if error_text.strip() == '':
-                # 공백만 있는 경우, 시각적으로 표시
-                error_display = "&nbsp;&nbsp;&#8596;&nbsp;&nbsp;"  # 양방향 화살표와 공백
-                html = f"""
-                <p>{i+1}. {prefix}<span style="color:red; font-weight:bold; background-color:#FFEEEE;">{error_display}</span>{suffix}</p>
-                <p><b>오류:</b> {message}</p>
-                <p><b>수정 제안:</b> {suggestions}</p>
-                <hr>
-                """
-            else:
-                html = f"""
-                <p>{i+1}. {prefix}<span style="color:red; font-weight:bold;">{error_text}</span>{suffix}</p>
-                <p><b>오류:</b> {message}</p>
-                <p><b>수정 제안:</b> {suggestions}</p>
-                <hr>
-                """
-            st.markdown(html, unsafe_allow_html=True)
-        except Exception as e:
-            st.warning(f"오류 컨텍스트 표시 중 문제 발생: {e}")
-            continue
+    # 최종 HTML 생성
+    highlighted_text = ''.join(html_parts)
     
-    # 디버깅 정보 (개발 중에만 사용)
-    with st.expander("디버깅 정보", expanded=False):
-        st.write("원본 오류 데이터:")
-        for i, error in enumerate(errors):
-            st.write(f"오류 {i+1}:")
-            st.write(error)
-    
-    # 오류 통계
-    st.write(f"총 {len(errors)}개의 문법/맞춤법 오류가 발견되었습니다.")
+    return highlighted_text, error_details
 
 # 텍스트 통계 분석 함수
 def analyze_text(text):
@@ -1306,9 +1221,33 @@ def show_student_page():
                 original_text = st.session_state.analysis_results['original_text']
                 
                 # 새로운 함수를 사용하여 문법 오류 표시
-                display_grammar_errors(original_text, grammar_errors)
+                highlighted_text, error_details = display_grammar_errors(original_text, grammar_errors)
                 
-                # 음성 다운로드 버튼 표시 (기존 버튼 위치에는 다운로드만 유지)
+                # 오류 표시 섹션
+                st.markdown("## 문법 오류 분석")
+                # 강조 표시된 텍스트 출력
+                st.markdown(highlighted_text, unsafe_allow_html=True)
+                
+                # 오류 세부 사항 표시
+                if error_details:
+                    st.markdown("### 오류 세부 사항")
+                    for error in error_details:
+                        with st.expander(f"오류 {error['id']}: {error['text']}"):
+                            st.write(f"**메시지:** {error['message']}")
+                            if error['replacements']:
+                                # 문자열 변환 과정 추가
+                                suggestions = []
+                                for r in error['replacements'][:3]:  # 최대 3개만 표시
+                                    if isinstance(r, str):
+                                        suggestions.append(r)
+                                    else:
+                                        suggestions.append(str(r))
+                                st.write(f"**수정 제안:** {', '.join(suggestions)}")
+                
+                # 오류 통계
+                st.write(f"총 {len(grammar_errors)}개의 문법/맞춤법 오류가 발견되었습니다.")
+                
+                # 음성 다운로드 버튼 표시
                 audio_key = f"audio_tab1_{hash(st.session_state.analysis_results['original_text'])}" if 'original_text' in st.session_state.analysis_results else None
                 if audio_key and audio_key in st.session_state and st.session_state[audio_key]:
                     audio_path = st.session_state[audio_key]
@@ -1674,31 +1613,48 @@ def show_teacher_page():
                 original_text = st.session_state.teacher_analysis_results['original_text']
                 
                 # 새로운 함수를 사용하여 문법 오류 표시
-                display_grammar_errors(original_text, grammar_errors)
+                highlighted_text, error_details = display_grammar_errors(original_text, grammar_errors)
                 
-                # 오류 수를 기준으로 피드백 생성
-                if len(grammar_errors) > 0:
-                    with st.expander("피드백 제안"):
-                        error_count = len(grammar_errors)
-                        
-                        if error_count > 10:
-                            feedback = "문법 오류가 다수 발견되었습니다. 기본적인 문법 규칙을 다시 복습하는 것이 좋겠습니다."
-                        elif error_count > 5:
-                            feedback = "몇 가지 문법 오류가 있습니다. 특히 반복되는 오류 패턴을 중점적으로 학습해보세요."
-                        else:
-                            feedback = "약간의 문법 오류만 있습니다. 전반적으로 좋은 영작입니다."
-                        
-                        st.write(feedback)
-                        
-                        # 첨삭 템플릿에 피드백 추가 버튼
-                        if st.button("이 피드백을 첨삭 노트에 추가", key="add_grammar_feedback"):
-                            if 'feedback_template' not in st.session_state:
-                                st.session_state.feedback_template = f"문법 피드백: {feedback}"
-                            else:
-                                st.session_state.feedback_template += f"\n\n문법 피드백: {feedback}"
+                # 오류 표시 섹션
+                st.markdown("## 문법 오류 분석")
+                # 강조 표시된 텍스트 출력
+                st.markdown(highlighted_text, unsafe_allow_html=True)
+                
+                # 오류 세부 사항 표시
+                if error_details:
+                    st.markdown("### 오류 세부 사항")
+                    for error in error_details:
+                        with st.expander(f"오류 {error['id']}: {error['text']}"):
+                            st.write(f"**메시지:** {error['message']}")
+                            if error['replacements']:
+                                # 문자열 변환 과정 추가
+                                suggestions = []
+                                for r in error['replacements'][:3]:  # 최대 3개만 표시
+                                    if isinstance(r, str):
+                                        suggestions.append(r)
+                                    else:
+                                        suggestions.append(str(r))
+                                st.write(f"**수정 제안:** {', '.join(suggestions)}")
+                
+                # 오류 통계
+                st.write(f"총 {len(grammar_errors)}개의 문법/맞춤법 오류가 발견되었습니다.")
+                
+                # 음성 다운로드 버튼 표시
+                audio_key = f"audio_tab1_{hash(st.session_state.teacher_analysis_results['original_text'])}" if 'original_text' in st.session_state.teacher_analysis_results else None
+                if audio_key and audio_key in st.session_state and st.session_state[audio_key]:
+                    audio_path = st.session_state[audio_key]
+                    if os.path.exists(audio_path):
+                        with st.expander("음성 파일 다운로드"):
+                            with open(audio_path, "rb") as f:
+                                audio_bytes = f.read()
                             
-                            st.success("피드백이 첨삭 노트에 추가되었습니다.")
-                        
+                            st.download_button(
+                                label="음성 다운로드",
+                                data=audio_bytes,
+                                file_name=f"audio_essay_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
+                                mime="audio/wav"
+                            )
+        
         with result_tab2:
             if 'teacher_analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.teacher_analysis_results:
                 vocab_analysis = st.session_state.teacher_analysis_results['vocab_analysis']
@@ -1787,10 +1743,10 @@ def show_teacher_page():
                 error_data = []
                 for error in grammar_errors:
                     error_data.append({
-                        "오류": user_text[error['offset']:error['offset'] + error['errorLength']],
+                        "오류": user_text[error['offset']:error['offset'] + error.get('length', error.get('errorLength', 0))],
                         "오류 내용": error['message'],
                         "수정 제안": str(error['replacements']),
-                        "위치": f"{error['offset']}:{error['offset'] + error['errorLength']}"
+                        "위치": f"{error['offset']}:{error['offset'] + error.get('length', error.get('errorLength', 0))}"
                     })
                 
                 # 어휘 분석
