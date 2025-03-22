@@ -349,6 +349,234 @@ def default_vocabulary_sets():
     advanced_words = {'arbitrary', 'cognitive', 'encompass', 'facilitate', 'implicit'}
     return {'basic': basic_words, 'intermediate': intermediate_words, 'advanced': advanced_words}
 
+# 학술 단어 목록
+@st.cache_resource
+def get_academic_word_list():
+    # 학술 단어 목록 (예시)
+    return {'analyze', 'concept', 'data', 'environment', 'establish', 'evident', 
+            'factor', 'interpret', 'method', 'principle', 'process', 'research', 
+            'significant', 'theory', 'variable'}
+
+# 단어 빈도 데이터 로드
+@st.cache_resource
+def get_word_frequency_data():
+    # 영어 단어 빈도 데이터 (예시)
+    common_words = {'the': 0.05, 'be': 0.04, 'to': 0.03, 'of': 0.025, 'and': 0.02}
+    return common_words
+
+# 고급 동의어 사전
+@st.cache_resource
+def get_advanced_synonyms():
+    return {
+        # 기본 형용사
+        'good': ['exemplary', 'exceptional', 'impeccable', 'outstanding', 'superb', 'commendable'],
+        'bad': ['detrimental', 'deplorable', 'egregious', 'lamentable', 'abysmal', 'substandard'],
+        'big': ['immense', 'formidable', 'monumental', 'colossal', 'substantial', 'extensive'],
+        'small': ['minuscule', 'negligible', 'infinitesimal', 'diminutive', 'minute', 'marginal'],
+        'happy': ['euphoric', 'exuberant', 'ecstatic', 'jubilant', 'delighted', 'elated'],
+        'sad': ['despondent', 'crestfallen', 'dejected', 'disconsolate', 'melancholic', 'woeful'],
+        'important': ['imperative', 'indispensable', 'paramount', 'pivotal', 'consequential', 'significant'],
+        'difficult': ['formidable', 'insurmountable', 'Herculean', 'arduous', 'challenging', 'demanding'],
+        'easy': ['effortless', 'rudimentary', 'facile', 'straightforward', 'uncomplicated', 'elementary'],
+        'beautiful': ['resplendent', 'breathtaking', 'sublime', 'exquisite', 'magnificent', 'captivating'],
+        
+        # 추가 형용사
+        'interesting': ['intriguing', 'captivating', 'compelling', 'engrossing', 'fascinating', 'riveting'],
+        'boring': ['tedious', 'monotonous', 'mundane', 'insipid', 'dull', 'unengaging'],
+        'smart': ['brilliant', 'astute', 'sagacious', 'ingenious', 'erudite', 'perspicacious'],
+        'stupid': ['obtuse', 'vacuous', 'inane', 'fatuous', 'imbecilic', 'absurd'],
+        'fast': ['expeditious', 'prompt', 'accelerated', 'swift', 'rapid', 'nimble'],
+        'slow': ['languorous', 'leisurely', 'sluggish', 'plodding', 'unhurried', 'dilatory'],
+        
+        # 자주 사용되는 동사
+        'say': ['articulate', 'pronounce', 'proclaim', 'assert', 'expound', 'enunciate'],
+        'think': ['contemplate', 'ponder', 'deliberate', 'ruminate', 'cogitate', 'muse'],
+        'see': ['observe', 'perceive', 'discern', 'witness', 'behold', 'scrutinize'],
+        'use': ['utilize', 'employ', 'implement', 'leverage', 'harness', 'apply'],
+        'make': ['construct', 'fabricate', 'forge', 'produce', 'generate', 'devise'],
+        'get': ['acquire', 'obtain', 'procure', 'attain', 'secure', 'garner']
+    }
+
+# 고급 표현 패턴
+@st.cache_resource
+def get_advanced_phrases():
+    return {
+        # 기본 표현 고급화
+        r'\bi think\b': ['I postulate that', 'I am of the conviction that', 'It is my considered opinion that', 'I firmly believe that', 'From my perspective', 'I have come to the conclusion that'],
+        r'\bi like\b': ['I am particularly enamored with', 'I hold in high regard', 'I find great merit in', 'I am deeply appreciative of', 'I have a profound affinity for', 'I derive considerable pleasure from'],
+        r'\bi want\b': ['I aspire to', 'I am inclined towards', 'My inclination is toward', 'I earnestly desire', 'I have a vested interest in', 'My objective is to'],
+        r'\blots of\b': ['a plethora of', 'an abundance of', 'a multitude of', 'a substantial amount of', 'a considerable quantity of', 'a significant number of'],
+        r'\bmany of\b': ['a preponderance of', 'a substantial proportion of', 'a significant contingent of', 'a notable segment of', 'a sizable fraction of', 'a considerable percentage of'],
+        
+        # 문장 시작 부분 향상
+        r'^In my opinion\b': ['From my perspective', 'According to my assessment', 'Based on my evaluation', 'In my estimation', 'As I perceive it', 'In my considered judgment'],
+        r'^I agree\b': ['I concur with the assessment that', 'I am in complete accord with', 'I share the sentiment that', 'I am aligned with the view that', 'I endorse the position that', 'I subscribe to the notion that'],
+        r'^I disagree\b': ['I take exception to', 'I contest the assertion that', 'I must respectfully differ with', 'I cannot reconcile myself with', 'I find myself at variance with', 'I am compelled to challenge the idea that'],
+        
+        # 한국어 학습자가 자주 사용하는 문구 대체
+        r'\bit is important to\b': ['it is imperative to', 'it is essential to', 'it is crucial to', 'it is of paramount importance to', 'it is a fundamental necessity to', 'it is a critical requirement to'],
+        r'\bin conclusion\b': ['in summation', 'to synthesize the aforementioned points', 'in culmination', 'as a final observation', 'to encapsulate the preceding discussion', 'as the logical denouement'],
+        r'\bfor example\b': ['as an illustrative case', 'to cite a pertinent instance', 'as a demonstrative example', 'to exemplify this concept', 'as a representative case in point', 'to elucidate through a specific example']
+    }
+
+def rewrite_similar_level(text):
+    """비슷한 수준으로 텍스트 재작성 - 간단한 동의어 교체"""
+    sentences = custom_sent_tokenize(text)
+    rewritten = []
+    
+    # 간단한 동의어 사전
+    synonyms = {
+        'good': ['nice', 'fine', 'decent'],
+        'bad': ['poor', 'unfortunate', 'unpleasant'],
+        'big': ['large', 'sizable', 'substantial'],
+        'small': ['little', 'tiny', 'slight'],
+        'happy': ['glad', 'pleased', 'content'],
+        'sad': ['unhappy', 'down', 'blue']
+    }
+    
+    for sentence in sentences:
+        words = custom_word_tokenize(sentence)
+        new_words = []
+        
+        for word in words:
+            word_lower = word.lower()
+            # 20% 확률로 동의어 교체 시도
+            if word_lower in synonyms and random.random() < 0.2:
+                replacement = random.choice(synonyms[word_lower])
+                # 대문자 보존
+                if word[0].isupper():
+                    replacement = replacement.capitalize()
+                new_words.append(replacement)
+            else:
+                new_words.append(word)
+        
+        rewritten.append(' '.join(new_words))
+    
+    return ' '.join(rewritten)
+
+def rewrite_improved_level(text):
+    """약간 향상된 수준으로 텍스트 재작성 - 중급 동의어로 대체하고 구문 개선"""
+    sentences = custom_sent_tokenize(text)
+    rewritten = []
+    
+    # 중급 동의어 사전
+    intermediate_synonyms = {
+        'good': ['beneficial', 'favorable', 'quality'],
+        'bad': ['negative', 'inferior', 'flawed'],
+        'big': ['significant', 'considerable', 'extensive'],
+        'small': ['minimal', 'limited', 'minor'],
+        'say': ['state', 'mention', 'express'],
+        'think': ['believe', 'consider', 'reflect'],
+        'important': ['essential', 'significant', 'crucial']
+    }
+    
+    # 개선할 구문 패턴
+    phrase_patterns = {
+        r'\bi think\b': ['In my opinion', 'I believe', 'From my perspective'],
+        r'\ba lot\b': ['considerably', 'significantly', 'substantially'],
+        r'\bvery\b': ['notably', 'particularly', 'especially']
+    }
+    
+    for sentence in sentences:
+        # 동의어 교체
+        words = custom_word_tokenize(sentence)
+        new_words = []
+        
+        for word in words:
+            word_lower = word.lower()
+            # 30% 확률로 중급 동의어 교체 시도
+            if word_lower in intermediate_synonyms and random.random() < 0.3:
+                replacement = random.choice(intermediate_synonyms[word_lower])
+                # 대문자 보존
+                if word[0].isupper():
+                    replacement = replacement.capitalize()
+                new_words.append(replacement)
+            else:
+                new_words.append(word)
+        
+        improved = ' '.join(new_words)
+        
+        # 구문 패턴 개선
+        for pattern, replacements in phrase_patterns.items():
+            if re.search(pattern, improved, re.IGNORECASE) and random.random() < 0.4:
+                improved = re.sub(pattern, random.choice(replacements), improved, flags=re.IGNORECASE)
+        
+        rewritten.append(improved)
+    
+    return ' '.join(rewritten)
+
+def rewrite_advanced_level(text):
+    """고급 수준으로 텍스트 재작성 - 고급 어휘와 표현으로 변환"""
+    # 문장 토큰화
+    sentences = custom_sent_tokenize(text)
+    advanced_sentences = []
+    
+    # 고급 동의어 및 표현 가져오기
+    advanced_synonyms = get_advanced_synonyms()
+    advanced_phrases = get_advanced_phrases()
+    
+    for sentence in sentences:
+        # 동의어 교체
+        for word, replacements in advanced_synonyms.items():
+            pattern = r'\b' + re.escape(word) + r'\b'
+            if re.search(pattern, sentence, re.IGNORECASE) and random.random() < 0.5:
+                replacement = random.choice(replacements)
+                # 원래 단어가 대문자로 시작하면 대체어도 대문자로 시작
+                if re.search(pattern, sentence).group(0)[0].isupper():
+                    replacement = replacement.capitalize()
+                sentence = re.sub(pattern, replacement, sentence, flags=re.IGNORECASE)
+        
+        # 고급 표현으로 교체
+        for pattern, replacements in advanced_phrases.items():
+            if re.search(pattern, sentence, re.IGNORECASE) and random.random() < 0.6:
+                replacement = random.choice(replacements)
+                sentence = re.sub(pattern, replacement, sentence, flags=re.IGNORECASE)
+        
+        advanced_sentences.append(sentence)
+    
+    # 재작성된 텍스트 반환
+    return ' '.join(advanced_sentences)
+
+# 고급 재작성 함수
+def advanced_rewrite_text(text, level='advanced'):
+    # 변환기 모델이 없으면 규칙 기반 방식으로 폴백
+    if not has_transformers:
+        return rewrite_advanced_level(text)
+    
+    try:
+        # 간단한 규칙 기반 고급 재작성 (transformers 모델 없을 때)
+        return rewrite_advanced_level(text)
+    except Exception as e:
+        st.warning(f"고급 재작성 처리 중 오류: {e}")
+        return rewrite_advanced_level(text)
+
+def rewrite_text(text, level="similar"):
+    """
+    입력 텍스트를 지정된 레벨에 따라 재작성합니다.
+    
+    Parameters:
+    - text: 재작성할 텍스트
+    - level: 재작성 레벨 ("similar", "improved", "advanced" 중 하나)
+    
+    Returns:
+    - 재작성된 텍스트
+    """
+    if not text:
+        return ""
+    
+    # 레벨에 따라 적절한 재작성 함수 호출
+    if level == "similar":
+        return rewrite_similar_level(text)
+    elif level == "improved":
+        return rewrite_improved_level(text)
+    elif level == "advanced":
+        if has_transformers:
+            return advanced_rewrite_text(text, level)
+        else:
+            return rewrite_advanced_level(text)
+    else:
+        return text  # 기본값은 원본 텍스트 반환
+
 # 학생 페이지
 def evaluate_vocabulary_level(text):
     # 온라인 데이터셋에서 어휘 로드
@@ -1015,231 +1243,3 @@ def evaluate_advanced_vocabulary(text):
     
     vocab_score = (len(rare_words) * 2 + len(academic_words)) / max(len(words), 1)
     return vocab_score
-
-def rewrite_text(text, level="similar"):
-    """
-    입력 텍스트를 지정된 레벨에 따라 재작성합니다.
-    
-    Parameters:
-    - text: 재작성할 텍스트
-    - level: 재작성 레벨 ("similar", "improved", "advanced" 중 하나)
-    
-    Returns:
-    - 재작성된 텍스트
-    """
-    if not text:
-        return ""
-    
-    # 레벨에 따라 적절한 재작성 함수 호출
-    if level == "similar":
-        return rewrite_similar_level(text)
-    elif level == "improved":
-        return rewrite_improved_level(text)
-    elif level == "advanced":
-        if has_transformers:
-            return advanced_rewrite_text(text, level)
-        else:
-            return rewrite_advanced_level(text)
-    else:
-        return text  # 기본값은 원본 텍스트 반환
-
-def rewrite_similar_level(text):
-    """비슷한 수준으로 텍스트 재작성 - 간단한 동의어 교체"""
-    sentences = custom_sent_tokenize(text)
-    rewritten = []
-    
-    # 간단한 동의어 사전
-    synonyms = {
-        'good': ['nice', 'fine', 'decent'],
-        'bad': ['poor', 'unfortunate', 'unpleasant'],
-        'big': ['large', 'sizable', 'substantial'],
-        'small': ['little', 'tiny', 'slight'],
-        'happy': ['glad', 'pleased', 'content'],
-        'sad': ['unhappy', 'down', 'blue']
-    }
-    
-    for sentence in sentences:
-        words = custom_word_tokenize(sentence)
-        new_words = []
-        
-        for word in words:
-            word_lower = word.lower()
-            # 20% 확률로 동의어 교체 시도
-            if word_lower in synonyms and random.random() < 0.2:
-                replacement = random.choice(synonyms[word_lower])
-                # 대문자 보존
-                if word[0].isupper():
-                    replacement = replacement.capitalize()
-                new_words.append(replacement)
-            else:
-                new_words.append(word)
-        
-        rewritten.append(' '.join(new_words))
-    
-    return ' '.join(rewritten)
-
-def rewrite_improved_level(text):
-    """약간 향상된 수준으로 텍스트 재작성 - 중급 동의어로 대체하고 구문 개선"""
-    sentences = custom_sent_tokenize(text)
-    rewritten = []
-    
-    # 중급 동의어 사전
-    intermediate_synonyms = {
-        'good': ['beneficial', 'favorable', 'quality'],
-        'bad': ['negative', 'inferior', 'flawed'],
-        'big': ['significant', 'considerable', 'extensive'],
-        'small': ['minimal', 'limited', 'minor'],
-        'say': ['state', 'mention', 'express'],
-        'think': ['believe', 'consider', 'reflect'],
-        'important': ['essential', 'significant', 'crucial']
-    }
-    
-    # 개선할 구문 패턴
-    phrase_patterns = {
-        r'\bi think\b': ['In my opinion', 'I believe', 'From my perspective'],
-        r'\ba lot\b': ['considerably', 'significantly', 'substantially'],
-        r'\bvery\b': ['notably', 'particularly', 'especially']
-    }
-    
-    for sentence in sentences:
-        # 동의어 교체
-        words = custom_word_tokenize(sentence)
-        new_words = []
-        
-        for word in words:
-            word_lower = word.lower()
-            # 30% 확률로 중급 동의어 교체 시도
-            if word_lower in intermediate_synonyms and random.random() < 0.3:
-                replacement = random.choice(intermediate_synonyms[word_lower])
-                # 대문자 보존
-                if word[0].isupper():
-                    replacement = replacement.capitalize()
-                new_words.append(replacement)
-            else:
-                new_words.append(word)
-        
-        improved = ' '.join(new_words)
-        
-        # 구문 패턴 개선
-        for pattern, replacements in phrase_patterns.items():
-            if re.search(pattern, improved, re.IGNORECASE) and random.random() < 0.4:
-                improved = re.sub(pattern, random.choice(replacements), improved, flags=re.IGNORECASE)
-        
-        rewritten.append(improved)
-    
-    return ' '.join(rewritten)
-
-def rewrite_advanced_level(text):
-    """고급 수준으로 텍스트 재작성 - 고급 어휘와 표현으로 변환"""
-    # 문장 토큰화
-    sentences = custom_sent_tokenize(text)
-    advanced_sentences = []
-    
-    # 고급 동의어 및 표현 가져오기
-    advanced_synonyms = get_advanced_synonyms()
-    advanced_phrases = get_advanced_phrases()
-    
-    for sentence in sentences:
-        # 동의어 교체
-        for word, replacements in advanced_synonyms.items():
-            pattern = r'\b' + re.escape(word) + r'\b'
-            if re.search(pattern, sentence, re.IGNORECASE) and random.random() < 0.5:
-                replacement = random.choice(replacements)
-                # 원래 단어가 대문자로 시작하면 대체어도 대문자로 시작
-                if re.search(pattern, sentence).group(0)[0].isupper():
-                    replacement = replacement.capitalize()
-                sentence = re.sub(pattern, replacement, sentence, flags=re.IGNORECASE)
-        
-        # 고급 표현으로 교체
-        for pattern, replacements in advanced_phrases.items():
-            if re.search(pattern, sentence, re.IGNORECASE) and random.random() < 0.6:
-                replacement = random.choice(replacements)
-                sentence = re.sub(pattern, replacement, sentence, flags=re.IGNORECASE)
-        
-        advanced_sentences.append(sentence)
-    
-    # 재작성된 텍스트 반환
-    return ' '.join(advanced_sentences)
-
-# 학술 단어 목록
-@st.cache_resource
-def get_academic_word_list():
-    # 학술 단어 목록 (예시)
-    return {'analyze', 'concept', 'data', 'environment', 'establish', 'evident', 
-            'factor', 'interpret', 'method', 'principle', 'process', 'research', 
-            'significant', 'theory', 'variable'}
-
-# 단어 빈도 데이터 로드
-@st.cache_resource
-def get_word_frequency_data():
-    # 영어 단어 빈도 데이터 (예시)
-    common_words = {'the': 0.05, 'be': 0.04, 'to': 0.03, 'of': 0.025, 'and': 0.02}
-    return common_words
-
-# 고급 재작성 함수
-def advanced_rewrite_text(text, level='advanced'):
-    # 변환기 모델이 없으면 규칙 기반 방식으로 폴백
-    if not has_transformers:
-        return rewrite_advanced_level(text)
-    
-    try:
-        # 간단한 규칙 기반 고급 재작성 (transformers 모델 없을 때)
-        return rewrite_advanced_level(text)
-    except Exception as e:
-        st.warning(f"고급 재작성 처리 중 오류: {e}")
-        return rewrite_advanced_level(text)
-
-# 고급 동의어 사전
-@st.cache_resource
-def get_advanced_synonyms():
-    return {
-        # 기본 형용사
-        'good': ['exemplary', 'exceptional', 'impeccable', 'outstanding', 'superb', 'commendable'],
-        'bad': ['detrimental', 'deplorable', 'egregious', 'lamentable', 'abysmal', 'substandard'],
-        'big': ['immense', 'formidable', 'monumental', 'colossal', 'substantial', 'extensive'],
-        'small': ['minuscule', 'negligible', 'infinitesimal', 'diminutive', 'minute', 'marginal'],
-        'happy': ['euphoric', 'exuberant', 'ecstatic', 'jubilant', 'delighted', 'elated'],
-        'sad': ['despondent', 'crestfallen', 'dejected', 'disconsolate', 'melancholic', 'woeful'],
-        'important': ['imperative', 'indispensable', 'paramount', 'pivotal', 'consequential', 'significant'],
-        'difficult': ['formidable', 'insurmountable', 'Herculean', 'arduous', 'challenging', 'demanding'],
-        'easy': ['effortless', 'rudimentary', 'facile', 'straightforward', 'uncomplicated', 'elementary'],
-        'beautiful': ['resplendent', 'breathtaking', 'sublime', 'exquisite', 'magnificent', 'captivating'],
-        
-        # 추가 형용사
-        'interesting': ['intriguing', 'captivating', 'compelling', 'engrossing', 'fascinating', 'riveting'],
-        'boring': ['tedious', 'monotonous', 'mundane', 'insipid', 'dull', 'unengaging'],
-        'smart': ['brilliant', 'astute', 'sagacious', 'ingenious', 'erudite', 'perspicacious'],
-        'stupid': ['obtuse', 'vacuous', 'inane', 'fatuous', 'imbecilic', 'absurd'],
-        'fast': ['expeditious', 'prompt', 'accelerated', 'swift', 'rapid', 'nimble'],
-        'slow': ['languorous', 'leisurely', 'sluggish', 'plodding', 'unhurried', 'dilatory'],
-        
-        # 자주 사용되는 동사
-        'say': ['articulate', 'pronounce', 'proclaim', 'assert', 'expound', 'enunciate'],
-        'think': ['contemplate', 'ponder', 'deliberate', 'ruminate', 'cogitate', 'muse'],
-        'see': ['observe', 'perceive', 'discern', 'witness', 'behold', 'scrutinize'],
-        'use': ['utilize', 'employ', 'implement', 'leverage', 'harness', 'apply'],
-        'make': ['construct', 'fabricate', 'forge', 'produce', 'generate', 'devise'],
-        'get': ['acquire', 'obtain', 'procure', 'attain', 'secure', 'garner']
-    }
-
-# 고급 표현 패턴
-@st.cache_resource
-def get_advanced_phrases():
-    return {
-        # 기본 표현 고급화
-        r'\bi think\b': ['I postulate that', 'I am of the conviction that', 'It is my considered opinion that', 'I firmly believe that', 'From my perspective', 'I have come to the conclusion that'],
-        r'\bi like\b': ['I am particularly enamored with', 'I hold in high regard', 'I find great merit in', 'I am deeply appreciative of', 'I have a profound affinity for', 'I derive considerable pleasure from'],
-        r'\bi want\b': ['I aspire to', 'I am inclined towards', 'My inclination is toward', 'I earnestly desire', 'I have a vested interest in', 'My objective is to'],
-        r'\blots of\b': ['a plethora of', 'an abundance of', 'a multitude of', 'a substantial amount of', 'a considerable quantity of', 'a significant number of'],
-        r'\bmany of\b': ['a preponderance of', 'a substantial proportion of', 'a significant contingent of', 'a notable segment of', 'a sizable fraction of', 'a considerable percentage of'],
-        
-        # 문장 시작 부분 향상
-        r'^In my opinion\b': ['From my perspective', 'According to my assessment', 'Based on my evaluation', 'In my estimation', 'As I perceive it', 'In my considered judgment'],
-        r'^I agree\b': ['I concur with the assessment that', 'I am in complete accord with', 'I share the sentiment that', 'I am aligned with the view that', 'I endorse the position that', 'I subscribe to the notion that'],
-        r'^I disagree\b': ['I take exception to', 'I contest the assertion that', 'I must respectfully differ with', 'I cannot reconcile myself with', 'I find myself at variance with', 'I am compelled to challenge the idea that'],
-        
-        # 한국어 학습자가 자주 사용하는 문구 대체
-        r'\bit is important to\b': ['it is imperative to', 'it is essential to', 'it is crucial to', 'it is of paramount importance to', 'it is a fundamental necessity to', 'it is a critical requirement to'],
-        r'\bin conclusion\b': ['in summation', 'to synthesize the aforementioned points', 'in culmination', 'as a final observation', 'to encapsulate the preceding discussion', 'as the logical denouement'],
-        r'\bfor example\b': ['as an illustrative case', 'to cite a pertinent instance', 'as a demonstrative example', 'to exemplify this concept', 'as a representative case in point', 'to elucidate through a specific example']
-    }
