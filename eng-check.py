@@ -25,6 +25,9 @@ from textblob import TextBlob
 import nltk
 from nltk.corpus import stopwords
 
+# 변환기 모듈 존재 여부 확인
+has_transformers = 'transformers' in globals()
+
 # NLTK 필요 데이터 다운로드 (Streamlit Cloud에서도 작동하도록 ssl 검증 무시)
 try:
     import ssl
@@ -974,6 +977,9 @@ def evaluate_advanced_vocabulary(text):
     word_frequencies = get_word_frequency_data()  # 단어별 빈도 데이터 로드
     
     rare_words = [w for w in words if w in word_frequencies and word_frequencies[w] < 0.001]
+    
+    # 학술 단어 목록 가져오기
+    academic_word_list = get_academic_word_list()
     academic_words = [w for w in words if w in academic_word_list]
     
     vocab_score = (len(rare_words) * 2 + len(academic_words)) / max(len(words), 1)
@@ -1257,12 +1263,12 @@ def enhance_vocabulary(text):
         'bad': 'detrimental',
         'big': 'substantial',
         'small': 'minimal',
+        'happy': 'euphoric',
+        'sad': 'depressed',
         'important': 'crucial',
-        'problem': 'challenge',
-        'use': 'utilize',
-        'make': 'construct',
-        'look': 'observe',
-        'think': 'contemplate'
+        'difficult': 'formidable',
+        'easy': 'facile',
+        'beautiful': 'resplendent'
     }
     
     for word in words:
@@ -1545,3 +1551,83 @@ def rewrite_advanced_level(sentence):
                 advanced_text = re.sub(pattern, replacement, advanced_text)
     
     return advanced_text
+
+# 비슷한 수준으로 재작성
+def rewrite_similar_level(sentence):
+    # 간단한 동의어 대체만 수행
+    basic_synonyms = {
+        'good': ['nice', 'fine', 'decent'],
+        'bad': ['poor', 'negative', 'unpleasant'],
+        'big': ['large', 'sizable', 'substantial'],
+        'small': ['little', 'tiny', 'minor'],
+        'happy': ['glad', 'pleased', 'content'],
+        'sad': ['unhappy', 'upset', 'down']
+    }
+    
+    words = custom_word_tokenize(sentence)
+    result = []
+    
+    for word in words:
+        word_lower = word.lower()
+        if word_lower in basic_synonyms and random.random() < 0.3:  # 30% 확률로 대체
+            synonyms = basic_synonyms[word_lower]
+            replacement = random.choice(synonyms)
+            
+            # 대문자 보존
+            if word[0].isupper():
+                replacement = replacement.capitalize()
+            
+            result.append(replacement)
+        else:
+            result.append(word)
+    
+    return ' '.join(result)
+
+# 약간 더 높은 수준으로 재작성
+def rewrite_improved_level(sentence):
+    # 중급 어휘로 대체
+    intermediate_synonyms = {
+        'good': ['excellent', 'outstanding', 'superb'],
+        'bad': ['inferior', 'substandard', 'inadequate'],
+        'big': ['enormous', 'extensive', 'considerable'],
+        'small': ['diminutive', 'slight', 'limited'],
+        'happy': ['delighted', 'thrilled', 'overjoyed'],
+        'sad': ['depressed', 'miserable', 'gloomy']
+    }
+    
+    # 기본 문구 개선
+    improved_phrases = {
+        r'\bI think\b': ['I believe', 'In my opinion', 'I consider'],
+        r'\bI like\b': ['I enjoy', 'I appreciate', 'I am fond of'],
+        r'\bI want\b': ['I desire', 'I wish', 'I would like'],
+        r'\blots of\b': ['numerous', 'many', 'plenty of'],
+        r'\bvery\b': ['extremely', 'particularly', 'significantly']
+    }
+    
+    # 우선 단어 수준 개선
+    words = custom_word_tokenize(sentence)
+    result = []
+    
+    for word in words:
+        word_lower = word.lower()
+        if word_lower in intermediate_synonyms and random.random() < 0.5:  # 50% 확률로 대체
+            synonyms = intermediate_synonyms[word_lower]
+            replacement = random.choice(synonyms)
+            
+            # 대문자 보존
+            if word[0].isupper():
+                replacement = replacement.capitalize()
+            
+            result.append(replacement)
+        else:
+            result.append(word)
+    
+    improved_text = ' '.join(result)
+    
+    # 문구 패턴 개선
+    for pattern, replacements in improved_phrases.items():
+        if re.search(pattern, improved_text, re.IGNORECASE):
+            replacement = random.choice(replacements)
+            improved_text = re.sub(pattern, replacement, improved_text, flags=re.IGNORECASE)
+    
+    return improved_text
