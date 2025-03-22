@@ -366,6 +366,14 @@ def evaluate_vocabulary_level(text):
     }
 
 # 학생 페이지
+def show_student_page():
+    st.title("영작문 자동 첨삭 시스템 - 학생")
+    
+    # 로그아웃 버튼
+    if st.button("로그아웃", key="student_logout"):
+        st.session_state.user_type = None
+        st.rerun()
+    
     tabs = st.tabs(["영작문 검사", "영작문 재작성", "내 작문 기록"])
     
     # 영작문 검사 탭
