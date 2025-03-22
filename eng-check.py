@@ -315,14 +315,27 @@ def check_grammar(text):
                         message = match.message
                         
                         # 제안된 수정 사항이 있으면 추가
-                        replacements = match.replacements if match.replacements else []
+                        replacements = []
+                        
+                        # LanguageTool 객체에서 replacements 속성 추출 방식 개선
+                        try:
+                            if hasattr(match, 'replacements'):
+                                replacements = list(match.replacements)  # 리스트로 변환
+                            elif hasattr(match, 'suggestions'):
+                                replacements = list(match.suggestions)
+                            elif hasattr(match, 'getSuggestions') and callable(match.getSuggestions):
+                                replacements = list(match.getSuggestions()) 
+                        except Exception as e:
+                            # replacements 추출 실패 시 빈 리스트 유지
+                            print(f"LanguageTool replacements 추출 실패: {e}")
                         
                         errors.append({
                             "offset": offset,
                             "errorLength": error_length,
                             "message": message,
                             "replacements": replacements,
-                            "source": "LanguageTool"  # 오류 소스 표시
+                            "source": "LanguageTool",  # 오류 소스 표시
+                            "context": text[max(0, offset-20):min(len(text), offset+error_length+20)]  # 오류 문맥 저장
                         })
                     
                     # LanguageTool 세션 닫기
@@ -334,7 +347,7 @@ def check_grammar(text):
             except Exception as e:
                 print(f"LanguageTool 오류: {e}")
                 # LanguageTool 사용 실패 시 기존 방식으로 폴백
-        
+                
         # 기존 맞춤법 검사 로직 (LanguageTool이 없거나 실패한 경우)
         blob = TextBlob(text)
         
@@ -455,14 +468,57 @@ def display_grammar_errors(text, errors):
     
     error_data = []
     for error in errors:
-        error_text = text[error['offset']:error['offset'] + error['errorLength']]
+        # 오류 텍스트 추출 개선 - 오류가 있는 경우 안전하게 처리
+        try:
+            error_text = text[error['offset']:error['offset'] + error['errorLength']]
+        except (IndexError, KeyError):
+            error_text = "오류 위치 확인 실패"
+        
         source = error.get('source', '기본 검사기')
         
-        # 수정 제안이 없거나 빈 배열인 경우 "수정 제안 없음" 표시
-        if not error.get('replacements') or len(error['replacements']) == 0:
-            suggestions = "수정 제안 없음"
-        else:
-            suggestions = ", ".join(error['replacements'][:3])
+        # 수정 제안 처리 개선
+        suggestions = "수정 제안 없음"
+        replacements = error.get('replacements', [])
+        
+        if replacements:
+            # replacements가 문자열 리스트인 경우
+            if isinstance(replacements, list) and all(isinstance(item, str) for item in replacements):
+                suggestions = ", ".join(replacements[:3])
+            # replacements가 딕셔너리나 다른 객체의 리스트인 경우
+            elif isinstance(replacements, list) and len(replacements) > 0:
+                # 첫 3개 항목만 사용하고 문자열로 변환
+                suggestion_items = []
+                for item in replacements[:3]:
+                    if isinstance(item, str):
+                        suggestion_items.append(item)
+                    elif hasattr(item, 'value') and isinstance(item.value, str):
+                        suggestion_items.append(item.value)
+                    elif isinstance(item, dict) and 'value' in item:
+                        suggestion_items.append(str(item['value']))
+                    else:
+                        suggestion_items.append(str(item))
+                
+                if suggestion_items:
+                    suggestions = ", ".join(suggestion_items)
+            # 문자열인 경우 (가능성 낮음)
+            elif isinstance(replacements, str):
+                suggestions = replacements
+            # 기타 예상치 못한 형식
+            else:
+                suggestions = str(replacements)
+        
+        # 문맥 정보 추가 - 오류 부분 강조 표시
+        context = ""
+        if 'context' in error:
+            context = error['context']
+        elif error_text and len(text) > 0:
+            # 오류 전후 20자 정도 표시
+            start = max(0, error['offset'] - 20)
+            end = min(len(text), error['offset'] + error['errorLength'] + 20)
+            prefix = text[start:error['offset']]
+            highlighted = f"**{error_text}**"  # 마크다운 강조
+            suffix = text[error['offset'] + error['errorLength']:end]
+            context = f"{prefix}{highlighted}{suffix}"
         
         error_data.append({
             "오류": error_text,
@@ -473,6 +529,36 @@ def display_grammar_errors(text, errors):
     
     # 테이블로 오류 표시
     st.dataframe(pd.DataFrame(error_data))
+    
+    # 오류 문맥 표시 - 더 직관적으로 이해할 수 있도록
+    st.subheader("오류 문맥")
+    for i, error in enumerate(errors):
+        try:
+            error_text = text[error['offset']:error['offset'] + error['errorLength']]
+            # 오류 전후 20자 정도 표시
+            start = max(0, error['offset'] - 20)
+            end = min(len(text), error['offset'] + error['errorLength'] + 20)
+            
+            prefix = text[start:error['offset']]
+            suffix = text[error['offset'] + error['errorLength']:end]
+            
+            # HTML로 강조 표시
+            html = f"""
+            <p>{i+1}. {prefix}<span style="color:red; font-weight:bold;">{error_text}</span>{suffix}</p>
+            <p><b>오류:</b> {error.get('message', '')}</p>
+            <p><b>수정 제안:</b> {error.get('replacements', [])[:3]}</p>
+            <hr>
+            """
+            st.markdown(html, unsafe_allow_html=True)
+        except:
+            continue
+    
+    # 디버깅 정보 (개발 중에만 사용)
+    with st.expander("디버깅 정보", expanded=False):
+        st.write("원본 오류 데이터:")
+        for i, error in enumerate(errors):
+            st.write(f"오류 {i+1}:")
+            st.write(error)
     
     # 오류 통계
     st.write(f"총 {len(errors)}개의 문법/맞춤법 오류가 발견되었습니다.")
