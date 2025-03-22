@@ -41,7 +41,7 @@ except ImportError:
         has_spellchecker = True
     except ImportError:
         has_spellchecker = False
-    st.info("맞춤법 검사 라이브러리(enchant)가 설치되지 않았습니다. TextBlob을 사용한 기본 맞춤법 검사만 제공됩니다.")
+    #st.info("맞춤법 검사 라이브러리(enchant)가 설치되지 않았습니다. TextBlob을 사용한 기본 맞춤법 검사만 제공됩니다.")
 
 # NLTK 필요 데이터 다운로드 (Streamlit Cloud에서도 작동하도록 ssl 검증 무시)
 try:
@@ -1414,36 +1414,154 @@ def enhance_sentence_with_domain(sentence, domain_vocabulary, prev_context="", n
 @st.cache_resource
 def get_advanced_synonyms():
     return {
-        'good': ['exemplary', 'exceptional', 'impeccable'],
-        'bad': ['detrimental', 'deplorable', 'egregious'],
-        'big': ['immense', 'formidable', 'monumental'],
-        'small': ['minuscule', 'negligible', 'infinitesimal'],
-        'happy': ['euphoric', 'exuberant', 'ecstatic'],
-        'sad': ['despondent', 'crestfallen', 'dejected'],
-        'important': ['imperative', 'indispensable', 'paramount'],
-        'difficult': ['formidable', 'insurmountable', 'Herculean'],
-        'easy': ['effortless', 'rudimentary', 'facile'],
-        'beautiful': ['resplendent', 'breathtaking', 'sublime']
+        # 기존 단어
+        'good': ['exemplary', 'exceptional', 'impeccable', 'superb', 'outstanding', 'excellent'],
+        'bad': ['detrimental', 'deplorable', 'egregious', 'substandard', 'inadequate', 'unfavorable'],
+        'big': ['immense', 'formidable', 'monumental', 'substantial', 'enormous', 'extensive'],
+        'small': ['minuscule', 'negligible', 'infinitesimal', 'minute', 'diminutive', 'marginal'],
+        'happy': ['euphoric', 'exuberant', 'ecstatic', 'elated', 'jubilant', 'overjoyed'],
+        'sad': ['despondent', 'crestfallen', 'dejected', 'melancholic', 'disheartened', 'disconsolate'],
+        'important': ['imperative', 'indispensable', 'paramount', 'pivotal', 'crucial', 'vital'],
+        'difficult': ['formidable', 'insurmountable', 'herculean', 'arduous', 'demanding', 'laborious'],
+        'easy': ['effortless', 'rudimentary', 'facile', 'straightforward', 'uncomplicated', 'simple'],
+        'beautiful': ['resplendent', 'breathtaking', 'sublime', 'exquisite', 'magnificent', 'stunning'],
+        
+        # 추가 단어
+        'interesting': ['fascinating', 'compelling', 'intriguing', 'captivating', 'engaging', 'absorbing'],
+        'boring': ['tedious', 'monotonous', 'mundane', 'insipid', 'dull', 'unengaging'],
+        'smart': ['astute', 'perspicacious', 'erudite', 'brilliant', 'sagacious', 'ingenious'],
+        'stupid': ['obtuse', 'imperceptive', 'injudicious', 'imprudent', 'misguided', 'inept'],
+        'nice': ['amiable', 'congenial', 'benevolent', 'affable', 'cordial', 'genial'],
+        'angry': ['indignant', 'irate', 'incensed', 'furious', 'exasperated', 'vexed'],
+        'scared': ['apprehensive', 'trepidatious', 'daunted', 'alarmed', 'disquieted', 'perturbed'],
+        'funny': ['humorous', 'comical', 'amusing', 'hilarious', 'entertaining', 'witty'],
+        'useless': ['ineffectual', 'fruitless', 'unproductive', 'futile', 'unavailing', 'inefficacious'],
+        'useful': ['advantageous', 'beneficial', 'serviceable', 'practical', 'valuable', 'constructive'],
+        
+        # 동사
+        'say': ['articulate', 'proclaim', 'assert', 'express', 'pronounce', 'convey'],
+        'look': ['observe', 'scrutinize', 'examine', 'survey', 'inspect', 'perceive'],
+        'make': ['construct', 'fabricate', 'produce', 'generate', 'establish', 'formulate'],
+        'get': ['acquire', 'obtain', 'procure', 'attain', 'secure', 'gain'],
+        'take': ['appropriate', 'seize', 'acquire', 'grasp', 'adopt', 'employ'],
+        'give': ['bestow', 'confer', 'impart', 'provide', 'allocate', 'distribute'],
+        'find': ['discover', 'locate', 'detect', 'uncover', 'identify', 'ascertain'],
+        'tell': ['relate', 'divulge', 'disclose', 'reveal', 'narrate', 'recount'],
+        'ask': ['inquire', 'interrogate', 'query', 'question', 'solicit', 'request'],
+        'feel': ['experience', 'perceive', 'sense', 'discern', 'intuit', 'apprehend'],
+        
+        # 자주 쓰는 부사
+        'very': ['exceedingly', 'immensely', 'tremendously', 'extraordinarily', 'remarkably', 'profoundly'],
+        'really': ['genuinely', 'authentically', 'truly', 'undeniably', 'veritably', 'legitimately'],
+        'just': ['precisely', 'specifically', 'exactly', 'particularly', 'solely', 'exclusively'],
+        'so': ['consequently', 'therefore', 'thus', 'accordingly', 'hence', 'subsequently'],
+        'quite': ['considerably', 'substantially', 'significantly', 'markedly', 'notably', 'decidedly'],
+        'too': ['excessively', 'overly', 'unduly', 'inordinately', 'immoderately', 'disproportionately']
     }
 
 @st.cache_resource
 def get_advanced_phrases():
     return {
-        r'\bi think\b': ['I postulate that', 'I am of the conviction that', 'It is my considered opinion that'],
-        r'\bi like\b': ['I am particularly enamored with', 'I hold in high regard', 'I find great merit in'],
-        r'\bi want\b': ['I aspire to', 'I am inclined towards', 'My inclination is toward'],
-        r'\blots of\b': ['a plethora of', 'an abundance of', 'a multitude of'],
-        r'\bmany of\b': ['a preponderance of', 'a substantial proportion of', 'a significant contingent of']
+        # 기본 표현
+        r'\bi think\b': ['I postulate that', 'I am of the conviction that', 'It is my considered opinion that', 
+                         'I hold the perspective that', 'My assessment suggests that', 'I would posit that'],
+        r'\bi like\b': ['I am particularly enamored with', 'I hold in high regard', 'I find great merit in', 
+                       'I am especially fond of', 'I have a distinct preference for', 'I am drawn to'],
+        r'\bi want\b': ['I aspire to', 'I am inclined towards', 'My inclination is toward', 
+                       'I seek to', 'It is my desire to', 'I am motivated to'],
+        r'\blots of\b': ['a plethora of', 'an abundance of', 'a multitude of', 
+                        'a substantial quantity of', 'a considerable amount of', 'numerous instances of'],
+        r'\bmany of\b': ['a preponderance of', 'a substantial proportion of', 'a significant contingent of', 
+                        'a notable fraction of', 'a considerable number of', 'a substantial segment of'],
+                        
+        # 추가 기본 표현
+        r'\bI need\b': ['I require', 'I necessitate', 'It is imperative for me to', 
+                       'I find it essential to', 'I am in need of', 'I deem it necessary to'],
+        r'\bI believe\b': ['I am convinced that', 'I maintain that', 'I subscribe to the notion that', 
+                         'I adhere to the principle that', 'My conviction is that', 'I firmly hold that'],
+        r'\bI know\b': ['I am cognizant of', 'I am well-versed in', 'I am thoroughly familiar with', 
+                       'I possess comprehensive knowledge of', 'I am well-acquainted with', 'I am fully aware of'],
+        r'\bI agree\b': ['I concur with', 'I am in accordance with', 'I align myself with', 
+                        'I share the sentiment that', 'I endorse the view that', 'I am of one mind with'],
+        r'\bI disagree\b': ['I take issue with', 'I contest the notion that', 'I diverge from the view that', 
+                          'I am at variance with', 'I oppose the perspective that', 'I cannot reconcile myself with'],
+        
+        # 시작 문구 개선
+        r'^In conclusion': ['To synthesize the aforementioned points', 'Drawing all aspects into consideration', 
+                           'Upon final analysis', 'As a culmination of these insights', 'In summation', 'To consolidate the arguments presented'],
+        r'^Moreover': ['Furthermore, it warrants emphasis that', 'In addition to the foregoing', 
+                      'Beyond what has been established', 'As an extension of this reasoning', 'To augment these considerations', 'Building upon this foundation'],
+        r'^However': ['Nonetheless, it must be acknowledged that', 'Conversely, one must consider that', 
+                     'Despite this assertion', 'In contrast to this perspective', 'Yet, it remains evident that', 'Notwithstanding these factors'],
+        r'^First': ['As an initial consideration', 'Foremost among these factors', 
+                   'The primary aspect to consider is', 'To begin this analysis', 'The foundational element is', 'At the forefront of this discussion'],
+        r'^For example': ['To illustrate this concept', 'As exemplified by', 
+                         'A pertinent instance of this phenomenon is', 'Consider, for instance', 'A demonstrative case is', 'By way of illustration'],
+        
+        # 한국 학습자 특화 표현 개선
+        r'\bI will do\b': ['I shall undertake', 'I intend to proceed with', 'I commit myself to', 
+                          'I will diligently execute', 'I will dedicate myself to accomplishing', 'I will systematically address'],
+        r'\bvery much\b': ['substantially', 'considerably', 'significantly', 
+                          'to a marked degree', 'to a notable extent', 'remarkably'],
+        r'\bI studied\b': ['I engaged in scholarly pursuit of', 'I devoted time to examining', 
+                          'I conducted an academic exploration of', 'I undertook a systematic study of', 'I applied myself to learning', 'I dedicated myself to mastering'],
+        r'\bIt is important\b': ['It is imperative', 'It is of paramount significance', 
+                                'It holds critical importance', 'It is fundamentally essential', 'It remains a crucial consideration', 'It constitutes a vital element']
     }
+
+@st.cache_resource
+def get_domain_specific_phrases(domain='academic'):
+    """
+    특정 영역(학술, 비즈니스, 일상 등)에 맞는 어휘 및 문구를 제공합니다.
+    """
+    phrases = {
+        'academic': {
+            r'\bshow\b': ['demonstrate', 'indicate', 'establish', 'reveal', 'manifest', 'elucidate'],
+            r'\btopic\b': ['subject matter', 'field of inquiry', 'area of study', 'focus of research', 'domain of investigation'],
+            r'\bresearch\b': ['scholarly investigation', 'academic inquiry', 'empirical study', 'systematic exploration', 'scientific examination'],
+            r'\bdata\b': ['empirical evidence', 'quantitative measurements', 'statistical information', 'research findings', 'collected observations'],
+            r'\bmethod\b': ['methodological approach', 'analytical framework', 'procedural technique', 'investigative protocol', 'systematic procedure'],
+            r'^The paper discusses': ['This scholarly work examines', 'The present study analyzes', 'This research investigates', 'This academic treatise addresses', 'The current investigation explores'],
+            r'^This study aims to': ['The objective of this research is to', 'This investigation seeks to', 'The purpose of this scholarly inquiry is to', 'This academic examination endeavors to', 'This analysis attempts to'],
+            r'^Results show': ['The empirical findings indicate', 'The data demonstrates', 'The research outcomes reveal', 'The analytical results suggest', 'The experimental evidence confirms']
+        },
+        'business': {
+            r'\bmoney\b': ['financial resources', 'capital', 'monetary assets', 'funds', 'financial means'],
+            r'\bcostumer\b': ['client', 'patron', 'consumer', 'end-user', 'purchaser'],
+            r'\bboss\b': ['executive director', 'chief executive officer', 'senior manager', 'supervisor', 'administrative head'],
+            r'\bjob\b': ['professional role', 'career position', 'occupational function', 'employment capacity', 'professional responsibility'],
+            r'\bmeeting\b': ['strategic gathering', 'corporate assembly', 'professional conference', 'business consultation', 'executive session'],
+            r'^I want to apply': ['I wish to submit my candidacy', 'I am interested in pursuing a position', 'I would like to express my interest in', 'I am seeking to secure a role', 'I aspire to join your organization as'],
+            r'^Please find attached': ['I have enclosed for your consideration', 'Attached herewith is', 'I submit for your review', 'Kindly find accompanying this correspondence', 'For your perusal, I have included'],
+            r'^We need to discuss': ['It would be beneficial to address', 'We should consider deliberating on', 'I propose we convene to examine', 'It is imperative we confer regarding', 'A consultation is warranted concerning']
+        },
+        'conversation': {
+            r'\bnice to meet you\b': ['pleased to make your acquaintance', 'delighted to encounter you', 'it is a pleasure to be introduced', 'charmed to meet you', 'gratified by our meeting'],
+            r'\bthanks\b': ['I appreciate your assistance', 'I am grateful for', 'my sincere gratitude for', 'I extend my thanks for', 'I would like to express my appreciation for'],
+            r'\bsorry\b': ['I apologize for', 'I regret that', 'please accept my apologies for', 'I must express my regret regarding', 'I am remorseful about'],
+            r'\bbye\b': ['farewell', 'until we meet again', 'I bid you adieu', 'I look forward to our next encounter', 'I must now take my leave'],
+            r'\bfriend\b': ['companion', 'confidant', 'associate', 'acquaintance', 'ally'],
+            r'^How are you': ['I trust you are faring well', 'How do you find yourself today', 'I hope this day finds you in good spirits', 'May I inquire after your wellbeing', 'I trust all is well with you'],
+            r'^I hope you': ['It is my sincere wish that you', 'I earnestly anticipate that you', 'My expectations are that you', 'I look forward to you', 'My desire is that you'],
+            r'^I'm writing to': ['I am corresponding to', 'The purpose of my communication is to', 'I am reaching out to', 'This message serves to', 'I am taking the liberty of contacting you to']
+        }
+    }
+    
+    return phrases.get(domain, phrases['academic'])
 
 def enhance_patterns_from_corpus():
     patterns = get_advanced_phrases()  # 기본 패턴
     
     # 학술 문헌에서 추출한 추가 패턴
     academic_patterns = {
-        r'\bshow that\b': ['demonstrate that', 'indicate that', 'reveal that'],
-        r'\bthe result is\b': ['the outcome suggests', 'findings indicate', 'this yields'],
-        # 더 많은 패턴...
+        r'\bshow that\b': ['demonstrate that', 'indicate that', 'reveal that', 'establish that', 'evidence that'],
+        r'\bthe result is\b': ['the outcome suggests', 'findings indicate', 'this yields', 'the data confirms', 'empirical evidence shows'],
+        r'\bin recent years\b': ['in contemporary scholarship', 'in the current academic landscape', 'in modern research', 'in present-day studies', 'in the evolving literature'],
+        r'\bthe purpose of this study\b': ['the objective of this investigation', 'this research aims to', 'the goal of this analysis', 'this inquiry seeks to', 'the focus of this examination'],
+        r'\bprevious research\b': ['extant literature', 'prior investigations', 'established scholarship', 'existing studies', 'antecedent research'],
+        r'\bneed more research\b': ['warrant further investigation', 'necessitate additional scholarly inquiry', 'require more comprehensive examination', 'demand deeper academic exploration', 'call for extended analysis'],
+        r'\bthis paper discusses\b': ['this study examines', 'this investigation addresses', 'this research analyzes', 'this work explores', 'this scholarly effort evaluates'],
+        r'\bit is clear that\b': ['evidence unequivocally suggests that', 'it is demonstrably evident that', 'findings conclusively indicate that', 'it is empirically verifiable that', 'data substantiates the conclusion that']
     }
     
     patterns.update(academic_patterns)
