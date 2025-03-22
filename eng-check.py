@@ -458,10 +458,16 @@ def display_grammar_errors(text, errors):
         error_text = text[error['offset']:error['offset'] + error['errorLength']]
         source = error.get('source', '기본 검사기')
         
+        # 수정 제안이 없거나 빈 배열인 경우 "수정 제안 없음" 표시
+        if not error.get('replacements') or len(error['replacements']) == 0:
+            suggestions = "수정 제안 없음"
+        else:
+            suggestions = ", ".join(error['replacements'][:3])
+        
         error_data.append({
             "오류": error_text,
             "오류 내용": error['message'],
-            "수정 제안": ", ".join(error['replacements'][:3]),
+            "수정 제안": suggestions,
             "검출 도구": source
         })
     
