@@ -657,8 +657,74 @@ def show_student_page():
     # 영작문 검사 탭
     with tabs[0]:
         st.subheader("영작문 입력")
-        user_text = st.text_area("아래에 영어 작문을 입력하세요", height=200, key="text_tab1")
         
+        # 영작문 입력과 듣기 버튼을 같은 행에 배치
+        input_col, listen_col = st.columns([3, 1])
+        
+        with input_col:
+            user_text = st.text_area("아래에 영어 작문을 입력하세요", height=200, key="text_tab1")
+        
+        with listen_col:
+            # 음성 생성/재생 버튼
+            st.markdown("<br><br>", unsafe_allow_html=True)  # 버튼 위치 조정을 위한 공백
+            
+            # 사용자 입력 텍스트의 해시값 계산 (변경 시 자동 갱신용)
+            if user_text:
+                text_hash = hash(user_text)
+                audio_key = f"audio_tab1_{text_hash}"
+                
+                # 세션 상태에 음성 파일 경로가 없으면 초기화
+                if audio_key not in st.session_state:
+                    st.session_state[audio_key] = None
+                
+                # 토글 상태 관리
+                if f"{audio_key}_playing" not in st.session_state:
+                    st.session_state[f"{audio_key}_playing"] = False
+                
+                # 토글 버튼 생성
+                if st.session_state[audio_key] is None:
+                    if st.button("📢 영작문 듣기", key=f"generate_audio_tab1", use_container_width=True):
+                        if user_text.strip():  # 텍스트가 있는 경우에만 실행
+                            with st.spinner("음성 파일을 생성 중입니다..."):
+                                try:
+                                    # 음성 파일 생성
+                                    voice_model = "en-US-JennyNeural"  # 기본 Jenny 음성 사용
+                                    
+                                    # 임시 파일 경로 생성
+                                    temp_dir = tempfile.gettempdir()
+                                    audio_file_path = os.path.join(temp_dir, f"speech_tab1_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
+                                    
+                                    # 비동기 함수 실행
+                                    loop = asyncio.new_event_loop()
+                                    asyncio.set_event_loop(loop)
+                                    audio_path = loop.run_until_complete(text_to_speech(user_text, voice_model, audio_file_path))
+                                    loop.close()
+                                    
+                                    # 세션 상태에 오디오 파일 경로 저장
+                                    st.session_state[audio_key] = audio_path
+                                    st.session_state[f"{audio_key}_playing"] = True
+                                    st.experimental_rerun()
+                                except Exception as e:
+                                    st.error(f"음성 생성 중 오류가 발생했습니다: {e}")
+                        else:
+                            st.warning("텍스트를 먼저 입력해주세요.")
+                else:
+                    # 토글 버튼 로직
+                    button_label = "⏹️ 음성 정지" if st.session_state[f"{audio_key}_playing"] else "▶️ 음성 재생"
+                    if st.button(button_label, key=f"toggle_audio_tab1", use_container_width=True):
+                        # 토글 상태 변경
+                        st.session_state[f"{audio_key}_playing"] = not st.session_state[f"{audio_key}_playing"]
+                        st.experimental_rerun()
+                    
+                    # 오디오 플레이어 표시 (현재 페이지 위치에 표시)
+                    if st.session_state[f"{audio_key}_playing"]:
+                        audio_path = st.session_state[audio_key]
+                        if os.path.exists(audio_path):
+                            # 음성 플레이어 표시
+                            audio_html = get_audio_player_html(audio_path, loop_count=5)
+                            st.markdown(audio_html, unsafe_allow_html=True)
+        
+        # 분석 버튼 행
         col1, col2 = st.columns([3, 1])
         
         # 모든 분석을 한 번에 실행하는 버튼
@@ -757,60 +823,12 @@ def show_student_page():
                 else:
                     st.success("문법 오류가 없습니다!")
                 
-                # 음성 듣기 기능 추가
-                st.subheader("영작문 듣기")
-                
-                # 음성 모델 선택 및 음성 생성 버튼
-                voice_col1, voice_col2 = st.columns([3, 1])
-                
-                with voice_col1:
-                    # 사용자가 텍스트를 변경했을 때 오디오 자동 갱신을 위한 키 설정
-                    if 'original_text' in st.session_state.analysis_results:
-                        text_hash = hash(st.session_state.analysis_results['original_text'])
-                        audio_key = f"audio_tab1_{text_hash}"
-                        
-                        # 세션 상태에 음성 파일 경로가 없으면 초기화
-                        if audio_key not in st.session_state:
-                            st.session_state[audio_key] = None
-                        
-                        # 토글 상태 관리
-                        if f"{audio_key}_playing" not in st.session_state:
-                            st.session_state[f"{audio_key}_playing"] = False
-                        
-                        # 토글 버튼 생성
-                        if st.session_state[audio_key] is None:
-                            if st.button("📢 영작문 듣기", key=f"generate_audio_tab1"):
-                                with st.spinner("음성 파일을 생성 중입니다..."):
-                                    # 음성 파일 생성
-                                    voice_model = "en-US-JennyNeural"  # 기본 Jenny 음성 사용
-                                    original_text = st.session_state.analysis_results['original_text']
-                                    
-                                    # 임시 파일 경로 생성
-                                    temp_dir = tempfile.gettempdir()
-                                    audio_file_path = os.path.join(temp_dir, f"speech_tab1_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
-                                    
-                                    # 비동기 함수 실행을 위한 런타임 설정
-                                    loop = asyncio.new_event_loop()
-                                    asyncio.set_event_loop(loop)
-                                    audio_path = loop.run_until_complete(text_to_speech(original_text, voice_model, audio_file_path))
-                                    
-                                    # 세션 상태에 오디오 파일 경로 저장
-                                    st.session_state[audio_key] = audio_path
-                                    st.session_state[f"{audio_key}_playing"] = True
-                                    st.experimental_rerun()
-                        else:
-                            # 토글 버튼 로직
-                            button_label = "⏹️ 음성 정지" if st.session_state[f"{audio_key}_playing"] else "▶️ 음성 재생"
-                            if st.button(button_label, key=f"toggle_audio_tab1"):
-                                # 토글 상태 변경
-                                st.session_state[f"{audio_key}_playing"] = not st.session_state[f"{audio_key}_playing"]
-                                st.experimental_rerun()
-                
-                with voice_col2:
-                    # 음성 파일 다운로드 버튼
-                    if audio_key in st.session_state and st.session_state[audio_key] is not None:
-                        audio_path = st.session_state[audio_key]
-                        if os.path.exists(audio_path):
+                # 음성 다운로드 버튼 표시 (기존 버튼 위치에는 다운로드만 유지)
+                audio_key = f"audio_tab1_{hash(st.session_state.analysis_results['original_text'])}" if 'original_text' in st.session_state.analysis_results else None
+                if audio_key and audio_key in st.session_state and st.session_state[audio_key]:
+                    audio_path = st.session_state[audio_key]
+                    if os.path.exists(audio_path):
+                        with st.expander("음성 파일 다운로드"):
                             with open(audio_path, "rb") as f:
                                 audio_bytes = f.read()
                             
@@ -820,14 +838,6 @@ def show_student_page():
                                 file_name=f"audio_essay_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
                                 mime="audio/wav"
                             )
-                
-                # 오디오 플레이어 표시
-                if audio_key in st.session_state and st.session_state[audio_key] is not None and st.session_state[f"{audio_key}_playing"]:
-                    audio_path = st.session_state[audio_key]
-                    if os.path.exists(audio_path):
-                        # 음성 플레이어 표시
-                        audio_html = get_audio_player_html(audio_path, loop_count=5)
-                        st.markdown(audio_html, unsafe_allow_html=True)
         
         with result_tab2:
             if 'analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.analysis_results:
