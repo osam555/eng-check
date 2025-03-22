@@ -341,6 +341,14 @@ def plot_word_frequency(word_freq):
     
     return fig
 
+# 기본 단어 셋 정의
+@st.cache_resource
+def default_vocabulary_sets():
+    basic_words = {'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it'}
+    intermediate_words = {'achieve', 'consider', 'determine', 'establish', 'indicate'}
+    advanced_words = {'arbitrary', 'cognitive', 'encompass', 'facilitate', 'implicit'}
+    return {'basic': basic_words, 'intermediate': intermediate_words, 'advanced': advanced_words}
+
 # 학생 페이지
 def evaluate_vocabulary_level(text):
     # 온라인 데이터셋에서 어휘 로드
@@ -1167,14 +1175,6 @@ def get_word_frequency_data():
     # 영어 단어 빈도 데이터 (예시)
     common_words = {'the': 0.05, 'be': 0.04, 'to': 0.03, 'of': 0.025, 'and': 0.02}
     return common_words
-
-# 기본 단어 셋 정의
-@st.cache_resource
-def default_vocabulary_sets():
-    basic_words = {'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it'}
-    intermediate_words = {'achieve', 'consider', 'determine', 'establish', 'indicate'}
-    advanced_words = {'arbitrary', 'cognitive', 'encompass', 'facilitate', 'implicit'}
-    return {'basic': basic_words, 'intermediate': intermediate_words, 'advanced': advanced_words}
 
 # 고급 재작성 함수
 def advanced_rewrite_text(text, level='advanced'):
