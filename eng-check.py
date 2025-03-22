@@ -522,7 +522,7 @@ def check_grammar_with_grammarcheck_api(text):
     
     return errors
 
-# 문법 검사 함수 (여러 엔진 통합)
+# 문법 검사 함수 개선
 def check_grammar(text):
     """여러 엔진을 사용하여 문법을 체크합니다."""
     if not text.strip():
@@ -533,6 +533,10 @@ def check_grammar(text):
     # 한국어 특화 오류 패턴 체크
     korean_english_errors = check_korean_english_errors(text)
     all_errors.extend(korean_english_errors)
+    
+    # 패턴 기반 추가 검사 (자주 발생하는 오류)
+    pattern_errors = check_additional_patterns(text)
+    all_errors.extend(pattern_errors)
     
     # TextBlob 문법 체크 사용
     if has_textblob:
@@ -633,6 +637,97 @@ def check_grammar(text):
             filtered_errors.append(error)
     
     return filtered_errors
+    
+# 추가 패턴 검사 함수 추가
+def check_additional_patterns(text):
+    """한국인 학습자가 자주 범하는 오류 패턴을 검사합니다."""
+    errors = []
+    
+    # 문장들로 분리
+    sentences = custom_sent_tokenize(text)
+    current_pos = 0
+    
+    for sentence in sentences:
+        # 전치사 누락 패턴: "impeachment the" -> "impeachment of the"
+        pattern_impeachment = r'impeachment\s+the'
+        matches = re.finditer(pattern_impeachment, sentence, re.IGNORECASE)
+        for match in matches:
+            start_in_sentence = match.start()
+            length = match.end() - match.start()
+            start_in_text = text.find(sentence, current_pos) + start_in_sentence
+            
+            if start_in_text >= 0:
+                errors.append({
+                    'message': "전치사 누락: 'impeachment the' → 'impeachment of the'",
+                    'offset': start_in_text,
+                    'length': length,
+                    'replacements': ['impeachment of the'],
+                    'rule': 'MISSING_PREPOSITION',
+                    'context': sentence
+                })
+        
+        # 불완전 문장 패턴: "has serious" 다음에 명사가 없는 경우
+        pattern_incomplete = r'has\s+serious\s*$'
+        matches = re.finditer(pattern_incomplete, sentence, re.IGNORECASE)
+        for match in matches:
+            start_in_sentence = match.start()
+            length = match.end() - match.start()
+            start_in_text = text.find(sentence, current_pos) + start_in_sentence
+            
+            if start_in_text >= 0:
+                errors.append({
+                    'message': "불완전 문장: 명사가 필요합니다. 'has serious' → 'has serious consequences'",
+                    'offset': start_in_text,
+                    'length': length,
+                    'replacements': ['has serious consequences', 'has serious implications', 'has serious effects'],
+                    'rule': 'INCOMPLETE_SENTENCE',
+                    'context': sentence
+                })
+        
+        # 기타 전치사 누락 패턴들
+        # "related to" 다음에 "the"가 오는 경우 체크
+        pattern_related = r'related\s+the'
+        matches = re.finditer(pattern_related, sentence, re.IGNORECASE)
+        for match in matches:
+            start_in_sentence = match.start()
+            length = match.end() - match.start()
+            start_in_text = text.find(sentence, current_pos) + start_in_sentence
+            
+            if start_in_text >= 0:
+                errors.append({
+                    'message': "전치사 누락: 'related the' → 'related to the'",
+                    'offset': start_in_text,
+                    'length': length,
+                    'replacements': ['related to the'],
+                    'rule': 'MISSING_PREPOSITION',
+                    'context': sentence
+                })
+                
+        # 대응하는 to-be 동사가 없는 경우
+        pattern_missing_verb = r'(the\s+\w+(?:\s+\w+){0,3})\s+(?:very|so|quite|extremely)\s+(\w+)(?:\s+(?:and|but|or)\s+(?:very|so|quite|extremely)\s+(\w+))?(?:\s*[,.]|\s+(?:that|which|who)|\s*$)'
+        matches = re.finditer(pattern_missing_verb, sentence, re.IGNORECASE)
+        for match in matches:
+            start_in_sentence = match.start()
+            length = match.end() - match.start()
+            start_in_text = text.find(sentence, current_pos) + start_in_sentence
+            
+            subject = match.group(1)
+            adjective = match.group(2)
+            
+            if start_in_text >= 0:
+                errors.append({
+                    'message': f"동사 누락: '{subject} {adjective}' → '{subject} is {adjective}'",
+                    'offset': start_in_text,
+                    'length': length,
+                    'replacements': [f"{subject} is {adjective}"],
+                    'rule': 'MISSING_VERB',
+                    'context': sentence
+                })
+        
+        # 현재 위치 업데이트
+        current_pos += len(sentence)
+    
+    return errors
 
 # 문법 오류 시각화 및 표시를 위한 함수
 def display_grammar_errors(text, errors):
