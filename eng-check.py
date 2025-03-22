@@ -1367,7 +1367,11 @@ def show_student_page():
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
                         
                         # 어휘 다양성 점수
-            st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
+                if 'diversity_score' in st.session_state.analysis_results:
+                    diversity_score = st.session_state.analysis_results.get('diversity_score', 0)
+                    st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
+                else:
+                    st.metric("어휘 다양성 점수", "0.00")
                         
                         # 어휘 수준 평가
             if vocab_level:
@@ -1757,7 +1761,11 @@ def show_teacher_page():
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
                         
                         # 어휘 다양성 점수
-                st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
+                if 'diversity_score' in st.session_state.teacher_analysis_results:
+                    diversity_score = st.session_state.teacher_analysis_results.get('diversity_score', 0)
+                    st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
+                else:
+                    st.metric("어휘 다양성 점수", "0.00")
                         
                         # 어휘 수준 평가
                 if vocab_level:
