@@ -28,6 +28,21 @@ from nltk.corpus import stopwords
 # 변환기 모듈 존재 여부 확인
 has_transformers = 'transformers' in globals()
 
+# 대체 맞춤법 검사 라이브러리 설정
+try:
+    import enchant
+    has_enchant = True
+except ImportError:
+    has_enchant = False
+    try:
+        # 대체 맞춤법 검사 라이브러리 시도
+        from spellchecker import SpellChecker
+        spell = SpellChecker()
+        has_spellchecker = True
+    except ImportError:
+        has_spellchecker = False
+    st.info("맞춤법 검사 라이브러리(enchant)가 설치되지 않았습니다. TextBlob을 사용한 기본 맞춤법 검사만 제공됩니다.")
+
 # NLTK 필요 데이터 다운로드 (Streamlit Cloud에서도 작동하도록 ssl 검증 무시)
 try:
     import ssl
@@ -42,14 +57,6 @@ try:
     nltk.download('stopwords', quiet=True)
 except Exception as e:
     st.warning(f"NLTK 데이터 다운로드 중 오류가 발생했습니다: {e}")
-
-# 맞춤법 검사 라이브러리를 조건부로 임포트
-try:
-    import enchant
-    has_enchant = True
-except ImportError:
-    has_enchant = False
-    st.info("맞춤법 검사 라이브러리(enchant)가 설치되지 않았습니다. TextBlob을 사용한 기본 맞춤법 검사만 제공됩니다.")
 
 # 정규식 패턴 컴파일 캐싱
 @st.cache_resource
@@ -102,6 +109,8 @@ def get_spell_checker():
             return enchant.Dict("en_US")
         except:
             return None
+    elif 'has_spellchecker' in globals() and has_spellchecker:
+        return spell
     return None
 
 # 자주 틀리는 단어에 대한 사용자 정의 제안 사전
@@ -178,7 +187,7 @@ def check_grammar(text):
                 for word in custom_word_tokenize(sentence):
                     if word.isalpha():  # 알파벳 단어만 확인
                         # 맞춤법 확인 (enchant가 있는 경우에만)
-                        if checker and not checker.check(word):
+                        if checker and has_enchant and not checker.check(word):
                             # 사용자 정의 제안이 있는지 먼저 확인
                             word_lower = word.lower()
                             if word_lower in custom_suggestions:
@@ -196,8 +205,27 @@ def check_grammar(text):
                                     "message": f"맞춤법 오류: '{word}'",
                                     "replacements": suggestions
                                 })
-                        # TextBlob을 사용한 맞춤법 검사 대안 (enchant가 없는 경우)
-                        elif not checker and has_enchant == False:
+                        # PySpellChecker 사용 (enchant 대신)
+                        elif checker and 'has_spellchecker' in globals() and has_spellchecker and word.lower() not in checker:
+                            # 사용자 정의 제안이 있는지 먼저 확인
+                            word_lower = word.lower()
+                            if word_lower in custom_suggestions:
+                                suggestions = custom_suggestions[word_lower]
+                            else:
+                                # PySpellChecker 제안 사용
+                                suggestions = [checker.correction(word)] + list(checker.candidates(word))[:2]
+                            
+                            word_offset = text.find(word, offset)
+                            
+                            if word_offset != -1:
+                                errors.append({
+                                    "offset": word_offset,
+                                    "errorLength": len(word),
+                                    "message": f"맞춤법 오류: '{word}'",
+                                    "replacements": suggestions
+                                })
+                        # TextBlob을 사용한 맞춤법 검사 대안 (다른 라이브러리가 없는 경우)
+                        elif not checker:
                             try:
                                 # 사용자 정의 제안이 있는지 먼저 확인
                                 word_lower = word.lower()
