@@ -435,7 +435,7 @@ def rewrite_similar_level(sentence):
                 replacement = replacement.capitalize()
             
             result.append(replacement)
-            else:
+        else:
             result.append(word)
     
     return ' '.join(result)
@@ -686,7 +686,7 @@ def show_student_page():
                         st.warning("텍스트를 입력해주세요.")
                     else:
                     # 텍스트 통계 분석
-                    stats = analyze_text(user_text)
+                        stats = analyze_text(user_text)
                     
                         # 문법 오류 검사
                         grammar_errors = check_grammar(user_text)
@@ -714,8 +714,8 @@ def show_student_page():
                     }
                             
                             # 기록에 저장
-                            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            st.session_state.history.append({
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    st.session_state.history.append({
                                 'timestamp': timestamp,
                                 'text': user_text,
                         'error_count': len(grammar_errors) if grammar_errors else 0
@@ -762,7 +762,7 @@ def show_student_page():
                         })
                     
                     st.dataframe(pd.DataFrame(error_data))
-                    else:
+                else:
                     st.success("문법 오류가 없습니다!")
         
         with result_tab2:
@@ -772,9 +772,9 @@ def show_student_page():
                 vocab_level = st.session_state.analysis_results['vocab_level']
                         
                         # 단어 빈도 시각화
-                        fig = plot_word_frequency(vocab_analysis['word_freq'])
-                        if fig:
-                            st.plotly_chart(fig, use_container_width=True)
+            fig = plot_word_frequency(vocab_analysis['word_freq'])
+            if fig:
+                        st.plotly_chart(fig, use_container_width=True)
                         
                         # 어휘 다양성 점수
                         st.metric("어휘 다양성 점수", f"{diversity_score:.2f}", 
@@ -795,31 +795,31 @@ def show_student_page():
             if 'analysis_results' in st.session_state and 'stats' in st.session_state.analysis_results:
                 stats = st.session_state.analysis_results['stats']
                     
-                    st.subheader("텍스트 통계")
+                st.subheader("텍스트 통계")
                     
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("단어 수", stats['word_count'])
-                        st.metric("문장 수", stats['sentence_count'])
-                    with col2:
-                        st.metric("평균 단어 길이", stats['avg_word_length'])
-                        st.metric("평균 문장 길이 (단어)", stats['avg_sentence_length'])
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("단어 수", stats['word_count'])
+                    st.metric("문장 수", stats['sentence_count'])
+                with col2:
+                    st.metric("평균 단어 길이", stats['avg_word_length'])
+                    st.metric("평균 문장 길이 (단어)", stats['avg_sentence_length'])
                     
                     st.metric("어휘 크기 (고유 단어 수)", stats['vocabulary_size'])
                     
                     # 게이지 차트로 표현하기
                     progress_col1, progress_col2 = st.columns(2)
-                    with progress_col1:
+                with progress_col1:
                         # 평균 문장 길이 게이지 (적정 영어 문장 길이: 15-20 단어)
-                        sentence_gauge = min(1.0, stats['avg_sentence_length'] / 20)
-                        st.progress(sentence_gauge)
-                        st.caption(f"문장 길이 적정성: {int(sentence_gauge * 100)}%")
+                    sentence_gauge = min(1.0, stats['avg_sentence_length'] / 20)
+                    st.progress(sentence_gauge)
+                    st.caption(f"문장 길이 적정성: {int(sentence_gauge * 100)}%")
                     
-                    with progress_col2:
+                with progress_col2:
                         # 어휘 다양성 게이지
-                        vocab_ratio = stats['vocabulary_size'] / max(1, stats['word_count'])
-                        st.progress(min(1.0, vocab_ratio * 2))  # 0.5 이상이면 100%
-                        st.caption(f"어휘 다양성: {int(min(1.0, vocab_ratio * 2) * 100)}%")
+                    vocab_ratio = stats['vocabulary_size'] / max(1, stats['word_count'])
+                    st.progress(min(1.0, vocab_ratio * 2))  # 0.5 이상이면 100%
+                    st.caption(f"어휘 다양성: {int(min(1.0, vocab_ratio * 2) * 100)}%")
     
     # 영작문 재작성 탭
     with tabs[1]:
@@ -1026,7 +1026,7 @@ def show_teacher_page():
             if 'teacher_analysis_results' in st.session_state and 'grammar_errors' in st.session_state.teacher_analysis_results:
                 grammar_errors = st.session_state.teacher_analysis_results['grammar_errors']
                         
-                        if grammar_errors:
+                if grammar_errors:
                             st.subheader("문법 오류 목록")
                             
                             error_data = []
@@ -1038,7 +1038,7 @@ def show_teacher_page():
                                 })
                             
                             st.dataframe(pd.DataFrame(error_data))
-                        else:
+                else:
                             st.success("문법 오류가 없습니다!")
             
         with result_tab2:
@@ -1048,37 +1048,37 @@ def show_teacher_page():
                 vocab_level = st.session_state.teacher_analysis_results['vocab_level']
                         
                         # 단어 빈도 시각화
-                        fig = plot_word_frequency(vocab_analysis['word_freq'])
-                        if fig:
+                fig = plot_word_frequency(vocab_analysis['word_freq'])
+                if fig:
                             st.plotly_chart(fig, use_container_width=True)
                         
                         # 어휘 다양성 점수
-                        st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
+                st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
                         
                         # 어휘 수준 평가
-                        level_df = pd.DataFrame({
+                level_df = pd.DataFrame({
                             '수준': ['기초', '중급', '고급'],
                             '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
                         })
                         
-                        fig = px.pie(level_df, values='비율', names='수준', 
+                fig = px.pie(level_df, values='비율', names='수준', 
                                     title='어휘 수준 분포')
-                        st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True)
         
         with result_tab3:
             if 'teacher_analysis_results' in st.session_state and 'stats' in st.session_state.teacher_analysis_results:
                 stats = st.session_state.teacher_analysis_results['stats']
                     
-                    st.subheader("텍스트 통계")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("단어 수", stats['word_count'])
-                        st.metric("문장 수", stats['sentence_count'])
-                    with col2:
-                        st.metric("평균 단어 길이", stats['avg_word_length'])
-                        st.metric("평균 문장 길이 (단어)", stats['avg_sentence_length'])
+                st.subheader("텍스트 통계")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("단어 수", stats['word_count'])
+                    st.metric("문장 수", stats['sentence_count'])
+                with col2:
+                    st.metric("평균 단어 길이", stats['avg_word_length'])
+                    st.metric("평균 문장 길이 (단어)", stats['avg_sentence_length'])
                     
-                    st.metric("어휘 크기 (고유 단어 수)", stats['vocabulary_size'])
+                st.metric("어휘 크기 (고유 단어 수)", stats['vocabulary_size'])
         
         # 교사 전용 기능
         st.subheader("첨삭 및 피드백")
@@ -1221,7 +1221,7 @@ def main():
     """)
     
     # 직접 학생 페이지로 이동
-        show_student_page()
+    show_student_page()
 
 if __name__ == "__main__":
     main()
