@@ -20,6 +20,11 @@ import io
 import random
 from datetime import datetime
 from textblob import TextBlob
+import asyncio
+import edge_tts
+import tempfile
+import os
+import base64
 
 # NLTK 라이브러리 및 데이터 처리
 import nltk
@@ -100,6 +105,10 @@ def custom_word_tokenize(text):
 # 세션 상태 초기화
 if 'history' not in st.session_state:
     st.session_state.history = []
+
+# 현재 선택된 탭 추적 (student_page의 경우)
+if 'selected_tab' not in st.session_state:
+    st.session_state.selected_tab = 0  # 기본 탭은 0(영작문 검사)
 
 # 맞춤법 사전 초기화
 @st.cache_resource
@@ -437,7 +446,7 @@ def rewrite_similar_level(text):
     for sentence in sentences:
         words = custom_word_tokenize(sentence)
         new_words = []
-        
+    
         for word in words:
             word_lower = word.lower()
             # 20% 확률로 동의어 교체 시도
@@ -481,7 +490,7 @@ def rewrite_improved_level(text):
         # 동의어 교체
         words = custom_word_tokenize(sentence)
         new_words = []
-        
+    
         for word in words:
             word_lower = word.lower()
             # 30% 확률로 중급 동의어 교체 시도
@@ -635,296 +644,440 @@ def show_student_page():
         st.session_state.user_type = None
         st.rerun()
     
-    # 탭 인덱스 초기화 (없는 경우)
-    if 'active_tab' not in st.session_state:
-        st.session_state.active_tab = 0
+    # 탭 인덱스를 세션 상태에서 가져옴
+    tab_index = st.session_state.selected_tab
     
-    # 탭 생성
+    # 탭 생성 - selected_tab에 따라 초기 선택 
     tabs = st.tabs(["영작문 검사", "영작문 재작성", "내 작문 기록"])
     
-    # 현재 활성 탭 선택
-    current_tab = st.session_state.active_tab
-    
+    # 현재 선택된 탭을 보여줌
+    with tabs[tab_index]:
+        pass
+
     # 영작문 검사 탭
     with tabs[0]:
-        if current_tab == 0:  # 이 탭이 활성화되어 있을 때만 내용 표시
-            st.subheader("영작문 입력")
-            user_text = st.text_area("아래에 영어 작문을 입력하세요", height=200, key="text_tab1")
-            
-            col1, col2 = st.columns([3, 1])
-            
-            # 모든 분석을 한 번에 실행하는 버튼
-            with col1:
-                if st.button("전체 분석하기", use_container_width=True, key="analyze_button"):
-                        if not user_text:
-                            st.warning("텍스트를 입력해주세요.")
-                        else:
-                        # 텍스트 통계 분석
-                            stats = analyze_text(user_text)
-                        
-                            try:
-                                # 문법 오류 검사
-                                grammar_errors = check_grammar(user_text)
-                            except Exception as e:
-                                st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
-                                grammar_errors = []
-                            
-                        # 어휘 분석
-                        vocab_analysis = analyze_vocabulary(user_text)
-                        
-                        # 어휘 다양성 점수
-                        diversity_score = calculate_lexical_diversity(user_text)
-                        
-                        # 어휘 수준 평가
-                        vocab_level = evaluate_vocabulary_level(user_text)
-                        
-                        # 세션 상태에 결과 저장
-                        if 'analysis_results' not in st.session_state:
-                            st.session_state.analysis_results = {}
-                        
-                        st.session_state.analysis_results = {
-                            'stats': stats,
-                            'grammar_errors': grammar_errors,
-                            'vocab_analysis': vocab_analysis,
-                            'diversity_score': diversity_score,
-                            'vocab_level': vocab_level,
-                            'original_text': user_text  # 원본 텍스트도 저장
-                        }
-                                
-                                # 기록에 저장
-                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        st.session_state.history.append({
-                                    'timestamp': timestamp,
-                                    'text': user_text,
-                            'error_count': len(grammar_errors) if grammar_errors else 0
-                        })
-                        
-                        st.success("분석이 완료되었습니다! 아래 탭에서 결과를 확인하세요.")
-                        
-                        # 분석이 완료되었음을 표시하는 플래그
-                        st.session_state.analysis_completed = True
-                        st.rerun()  # 재실행하여 버튼 표시 업데이트
-            
-            # 재작성 추천 버튼 추가
-            with col2:
-                # 분석 결과가 있는 경우에만 버튼 표시
-                if 'analysis_results' in st.session_state and 'original_text' in st.session_state.analysis_results:
-                    if st.button("✨ 영작문 재작성 추천 ✨", 
-                              key="rewrite_recommendation",
-                              use_container_width=True,
-                              help="분석 결과를 바탕으로 영작문을 더 좋은 표현으로 재작성해보세요!",
-                              type="primary"):
-                        # 텍스트를 세션 상태에 저장
-                        st.session_state.copy_to_rewrite = st.session_state.analysis_results['original_text']
-                        
-                        # 활성 탭을 재작성 탭(인덱스 1)으로 변경
-                        st.session_state.active_tab = 1
-                        
-                        # 성공 메시지와 이펙트
-                        st.success("텍스트가 복사되었습니다. 재작성 탭으로 이동합니다!")
-                        st.balloons()  # 시각적 효과 추가
-                        
-                        # 페이지 재실행하여 탭 변경 적용
-                        st.rerun()
-            
-            # 결과 표시를 위한 탭
-            result_tab1, result_tab2, result_tab3 = st.tabs(["문법 검사", "어휘 분석", "텍스트 통계"])
-            
-            with result_tab1:
-                if 'analysis_results' in st.session_state and 'grammar_errors' in st.session_state.analysis_results:
-                    grammar_errors = st.session_state.analysis_results['grammar_errors']
+        st.subheader("영작문 입력")
+        user_text = st.text_area("아래에 영어 작문을 입력하세요", height=200, key="text_tab1")
+        
+        col1, col2 = st.columns([3, 1])
+        
+        # 모든 분석을 한 번에 실행하는 버튼
+        with col1:
+            if st.button("전체 분석하기", use_container_width=True, key="analyze_button"):
+                if not user_text:
+                    st.warning("텍스트를 입력해주세요.")
+                else:
+                    # 텍스트 통계 분석
+                    stats = analyze_text(user_text)
+                
+                    # 문법 오류 검사
+                    try:
+                        grammar_errors = check_grammar(user_text)
+                    except Exception as e:
+                        st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
+                        grammar_errors = []
                     
-                    if grammar_errors:
-                        st.subheader("문법 오류 목록")
-                        
-                        error_data = []
-                        for error in grammar_errors:
-                            error_data.append({
-                                "오류": user_text[error['offset']:error['offset'] + error['errorLength']],
-                                "오류 내용": error['message'],
-                                "수정 제안": error['replacements']
-                            })
-                        
-                        st.dataframe(pd.DataFrame(error_data))
-                    else:
-                        st.success("문법 오류가 없습니다!")
-            
-            with result_tab2:
-                if 'analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.analysis_results:
-                    vocab_analysis = st.session_state.analysis_results['vocab_analysis']
-                    diversity_score = st.session_state.analysis_results['diversity_score']
-                    vocab_level = st.session_state.analysis_results['vocab_level']
-                            
-                    # 단어 빈도 시각화
-                    fig = plot_word_frequency(vocab_analysis['word_freq'])
-                    if fig:
-                        st.plotly_chart(fig, use_container_width=True)
-                        
+                    # 어휘 분석
+                    vocab_analysis = analyze_vocabulary(user_text)
+                    
                     # 어휘 다양성 점수
-                    st.metric("어휘 다양성 점수", f"{diversity_score:.2f}", 
-                             delta="높을수록 다양한 어휘 사용")
+                    diversity_score = calculate_lexical_diversity(user_text)
                     
                     # 어휘 수준 평가
-                    level_df = pd.DataFrame({
-                        '수준': ['기초', '중급', '고급'],
-                        '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
+                    vocab_level = evaluate_vocabulary_level(user_text)
+                    
+                    # 세션 상태에 결과 저장
+                    if 'analysis_results' not in st.session_state:
+                        st.session_state.analysis_results = {}
+                    
+                    st.session_state.analysis_results = {
+                        'stats': stats,
+                        'grammar_errors': grammar_errors,
+                        'vocab_analysis': vocab_analysis,
+                        'diversity_score': diversity_score,
+                        'vocab_level': vocab_level,
+                        'original_text': user_text  # 원본 텍스트도 저장
+                    }
+                    
+                    # 기록에 저장
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    st.session_state.history.append({
+                        'timestamp': timestamp,
+                        'text': user_text,
+                        'error_count': len(grammar_errors) if grammar_errors else 0
                     })
                     
-                    fig = px.pie(level_df, values='비율', names='수준', 
-                                title='어휘 수준 분포',
-                                color_discrete_sequence=px.colors.sequential.Viridis)
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            with result_tab3:
-                if 'analysis_results' in st.session_state and 'stats' in st.session_state.analysis_results:
-                    stats = st.session_state.analysis_results['stats']
-                        
-                    st.subheader("텍스트 통계")
-                        
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("단어 수", stats['word_count'])
-                        st.metric("문장 수", stats['sentence_count'])
-                    with col2:
-                        st.metric("평균 단어 길이", stats['avg_word_length'])
-                        st.metric("평균 문장 길이 (단어)", stats['avg_sentence_length'])
-                        
-                        st.metric("어휘 크기 (고유 단어 수)", stats['vocabulary_size'])
-                        
-                        # 게이지 차트로 표현하기
-                        progress_col1, progress_col2 = st.columns(2)
-                    with progress_col1:
-                            # 평균 문장 길이 게이지 (적정 영어 문장 길이: 15-20 단어)
-                        sentence_gauge = min(1.0, stats['avg_sentence_length'] / 20)
-                        st.progress(sentence_gauge)
-                        st.caption(f"문장 길이 적정성: {int(sentence_gauge * 100)}%")
-                        
-                    with progress_col2:
-                            # 어휘 다양성 게이지
-                        vocab_ratio = stats['vocabulary_size'] / max(1, stats['word_count'])
-                        st.progress(min(1.0, vocab_ratio * 2))  # 0.5 이상이면 100%
-                        st.caption(f"어휘 다양성: {int(min(1.0, vocab_ratio * 2) * 100)}%")
-        
-    # 영작문 재작성 탭
-    with tabs[1]:
-        if current_tab == 1:  # 이 탭이 활성화되어 있을 때만 내용 표시
-            st.subheader("영작문 재작성")
-            
-            # 왼쪽 열: 입력 및 옵션
-            left_col, right_col = st.columns(2)
-            
-            with left_col:
-                # 분석 탭에서 넘어온 경우 해당 텍스트를 자동으로 로드
-                default_text = ""
-                if 'copy_to_rewrite' in st.session_state:
-                    default_text = st.session_state.copy_to_rewrite
-                    st.success("분석 결과 텍스트가 로드되었습니다!")
-                    # 한 번 사용 후 임시 변수로 옮겨 저장
-                    st.session_state.copy_to_rewrite_temp = default_text
-                    del st.session_state.copy_to_rewrite
-                elif 'copy_to_rewrite_temp' in st.session_state:
-                    default_text = st.session_state.copy_to_rewrite_temp
-                
-                rewrite_text_input = st.text_area("아래에 영어 작문을 입력하세요", 
-                                                value=default_text,
-                                                height=200, 
-                                                key="text_tab2")
-                
-                level_option = st.radio(
-                    "작문 수준 선택",
-                    options=["비슷한 수준", "약간 높은 수준", "고급 수준"],
-                    horizontal=True
-                )
-                
-                level_map = {
-                    "비슷한 수준": "similar",
-                    "약간 높은 수준": "improved",
-                    "고급 수준": "advanced"
-                }
-                
-                if st.button("재작성하기"):
-                    if not rewrite_text_input:
-                        st.warning("텍스트를 입력해주세요.")
-                    else:
-                        level = level_map.get(level_option, "similar")
-                        
-                        # 재작성 처리
-                        with st.spinner("텍스트를 재작성 중입니다..."):
-                            rewritten_text = rewrite_text(rewrite_text_input, level)
-                            
-                            # 재작성된 텍스트를 세션 상태에 저장
-                            if 'rewritten_text' not in st.session_state:
-                                st.session_state.rewritten_text = {}
-                            
-                            st.session_state.rewritten_text[level] = rewritten_text
-                            
-                            # 기록에 추가
-                            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            st.session_state.history.append({
-                                'timestamp': timestamp,
-                                'text': rewrite_text_input,
-                                'action': f"재작성 ({level_option})"
-                            })
-                
-            with right_col:
-                st.subheader("재작성 결과")
-                
-                if 'rewritten_text' in st.session_state and st.session_state.rewritten_text:
-                    level = level_map.get(level_option, "similar")
+                    st.success("분석이 완료되었습니다! 아래 탭에서 결과를 확인하세요.")
                     
-                    if level in st.session_state.rewritten_text:
-                        rewritten = st.session_state.rewritten_text[level]
-                        st.text_area("재작성된 텍스트", value=rewritten, height=250, key="rewritten_result")
+                    # 분석이 완료되었음을 표시하는 플래그
+                    st.session_state.analysis_completed = True
+                    st.rerun()  # 재실행하여 버튼 표시 업데이트
+        
+        # 재작성 추천 버튼 추가
+        with col2:
+            # 분석 결과가 있는 경우에만 버튼 표시
+            if 'analysis_results' in st.session_state and 'original_text' in st.session_state.analysis_results:
+                if st.button("✨ 영작문 재작성 추천 ✨", 
+                          key="rewrite_recommendation",
+                          use_container_width=True,
+                          help="분석 결과를 바탕으로 영작문을 더 좋은 표현으로 재작성해보세요!",
+                          type="primary"):
+                    # 텍스트를 세션 상태에 저장
+                    st.session_state.copy_to_rewrite = st.session_state.analysis_results['original_text']
+                    
+                    # 재작성 탭으로 전환하기 위해 selected_tab 업데이트
+                    st.session_state.selected_tab = 1  # 1은 영작문 재작성 탭
+                    
+                    # 사용자에게 안내 메시지 표시
+                    st.success("텍스트가 복사되었습니다. 재작성 탭으로 이동합니다!")
+                    st.balloons()  # 시각적 효과 추가
+                    
+                    # 페이지 새로고침 (탭 전환을 위해)
+                    st.rerun()
+        
+        # 결과 표시를 위한 탭
+        result_tab1, result_tab2, result_tab3 = st.tabs(["문법 검사", "어휘 분석", "텍스트 통계"])
+        
+        with result_tab1:
+            if 'analysis_results' in st.session_state and 'grammar_errors' in st.session_state.analysis_results:
+                grammar_errors = st.session_state.analysis_results['grammar_errors']
+                
+                if grammar_errors:
+                    st.subheader("문법 오류 목록")
+                    
+                    error_data = []
+                    for error in grammar_errors:
+                        error_data.append({
+                            "오류": user_text[error['offset']:error['offset'] + error['errorLength']],
+                            "오류 내용": error['message'],
+                            "수정 제안": error['replacements']
+                        })
+                    
+                    st.dataframe(pd.DataFrame(error_data))
+                else:
+                    st.success("문법 오류가 없습니다!")
+                
+                # 음성 듣기 기능 추가
+                st.subheader("영작문 듣기")
+                
+                # 음성 모델 선택 및 음성 생성 버튼
+                voice_col1, voice_col2 = st.columns([3, 1])
+                
+                with voice_col1:
+                    # 사용자가 텍스트를 변경했을 때 오디오 자동 갱신을 위한 키 설정
+                    if 'original_text' in st.session_state.analysis_results:
+                        text_hash = hash(st.session_state.analysis_results['original_text'])
+                        audio_key = f"audio_tab1_{text_hash}"
                         
-                        # 재작성 텍스트 복사 기능 대신 다운로드 기능 제공
-                        if rewritten:
-                            output = io.BytesIO()
-                            output.write(rewritten.encode('utf-8'))
-                            output.seek(0)
+                        # 세션 상태에 음성 파일 경로가 없으면 초기화
+                        if audio_key not in st.session_state:
+                            st.session_state[audio_key] = None
+                        
+                        # 토글 상태 관리
+                        if f"{audio_key}_playing" not in st.session_state:
+                            st.session_state[f"{audio_key}_playing"] = False
+                        
+                        # 토글 버튼 생성
+                        if st.session_state[audio_key] is None:
+                            if st.button("📢 영작문 듣기", key=f"generate_audio_tab1"):
+                                with st.spinner("음성 파일을 생성 중입니다..."):
+                                    # 음성 파일 생성
+                                    voice_model = "en-US-JennyNeural"  # 기본 Jenny 음성 사용
+                                    original_text = st.session_state.analysis_results['original_text']
+                                    
+                                    # 임시 파일 경로 생성
+                                    temp_dir = tempfile.gettempdir()
+                                    audio_file_path = os.path.join(temp_dir, f"speech_tab1_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
+                                    
+                                    # 비동기 함수 실행을 위한 런타임 설정
+                                    loop = asyncio.new_event_loop()
+                                    asyncio.set_event_loop(loop)
+                                    audio_path = loop.run_until_complete(text_to_speech(original_text, voice_model, audio_file_path))
+                                    
+                                    # 세션 상태에 오디오 파일 경로 저장
+                                    st.session_state[audio_key] = audio_path
+                                    st.session_state[f"{audio_key}_playing"] = True
+                                    st.experimental_rerun()
+                        else:
+                            # 토글 버튼 로직
+                            button_label = "⏹️ 음성 정지" if st.session_state[f"{audio_key}_playing"] else "▶️ 음성 재생"
+                            if st.button(button_label, key=f"toggle_audio_tab1"):
+                                # 토글 상태 변경
+                                st.session_state[f"{audio_key}_playing"] = not st.session_state[f"{audio_key}_playing"]
+                                st.experimental_rerun()
+                
+                with voice_col2:
+                    # 음성 파일 다운로드 버튼
+                    if audio_key in st.session_state and st.session_state[audio_key] is not None:
+                        audio_path = st.session_state[audio_key]
+                        if os.path.exists(audio_path):
+                            with open(audio_path, "rb") as f:
+                                audio_bytes = f.read()
                             
                             st.download_button(
-                                label="재작성 텍스트 다운로드",
-                                data=output,
+                                label="음성 다운로드",
+                                data=audio_bytes,
+                                file_name=f"audio_essay_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
+                                mime="audio/wav"
+                            )
+                
+                # 오디오 플레이어 표시
+                if audio_key in st.session_state and st.session_state[audio_key] is not None and st.session_state[f"{audio_key}_playing"]:
+                    audio_path = st.session_state[audio_key]
+                    if os.path.exists(audio_path):
+                        # 음성 플레이어 표시
+                        audio_html = get_audio_player_html(audio_path, loop_count=5)
+                        st.markdown(audio_html, unsafe_allow_html=True)
+        
+        with result_tab2:
+            if 'analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.analysis_results:
+                vocab_analysis = st.session_state.analysis_results['vocab_analysis']
+                diversity_score = st.session_state.analysis_results['diversity_score']
+                vocab_level = st.session_state.analysis_results['vocab_level']
+                        
+                        # 단어 빈도 시각화
+            fig = plot_word_frequency(vocab_analysis['word_freq'])
+            if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # 어휘 다양성 점수
+                        st.metric("어휘 다양성 점수", f"{diversity_score:.2f}", 
+                                 delta="높을수록 다양한 어휘 사용")
+                        
+                        # 어휘 수준 평가
+                        level_df = pd.DataFrame({
+                            '수준': ['기초', '중급', '고급'],
+                            '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
+                        })
+                        
+                        fig = px.pie(level_df, values='비율', names='수준', 
+                                    title='어휘 수준 분포',
+                                    color_discrete_sequence=px.colors.sequential.Viridis)
+                        st.plotly_chart(fig, use_container_width=True)
+        
+        with result_tab3:
+            if 'analysis_results' in st.session_state and 'stats' in st.session_state.analysis_results:
+                stats = st.session_state.analysis_results['stats']
+                    
+                st.subheader("텍스트 통계")
+                    
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("단어 수", stats['word_count'])
+                    st.metric("문장 수", stats['sentence_count'])
+                with col2:
+                    st.metric("평균 단어 길이", stats['avg_word_length'])
+                    st.metric("평균 문장 길이 (단어)", stats['avg_sentence_length'])
+                    
+                    st.metric("어휘 크기 (고유 단어 수)", stats['vocabulary_size'])
+                    
+                    # 게이지 차트로 표현하기
+                    progress_col1, progress_col2 = st.columns(2)
+                with progress_col1:
+                        # 평균 문장 길이 게이지 (적정 영어 문장 길이: 15-20 단어)
+                    sentence_gauge = min(1.0, stats['avg_sentence_length'] / 20)
+                    st.progress(sentence_gauge)
+                    st.caption(f"문장 길이 적정성: {int(sentence_gauge * 100)}%")
+                    
+                with progress_col2:
+                        # 어휘 다양성 게이지
+                    vocab_ratio = stats['vocabulary_size'] / max(1, stats['word_count'])
+                    st.progress(min(1.0, vocab_ratio * 2))  # 0.5 이상이면 100%
+                    st.caption(f"어휘 다양성: {int(min(1.0, vocab_ratio * 2) * 100)}%")
+    
+    # 영작문 재작성 탭
+    with tabs[1]:
+        st.subheader("영작문 재작성")
+        
+        # 왼쪽 열: 입력 및 옵션
+        left_col, right_col = st.columns(2)
+        
+        with left_col:
+            # 분석 탭에서 넘어온 경우 해당 텍스트를 자동으로 로드
+            default_text = ""
+            if 'copy_to_rewrite' in st.session_state:
+                default_text = st.session_state.copy_to_rewrite
+                st.success("분석 결과 텍스트가 로드되었습니다!")
+                # 한 번 사용 후 임시 변수로 옮겨 저장
+                st.session_state.copy_to_rewrite_temp = default_text
+                del st.session_state.copy_to_rewrite
+            elif 'copy_to_rewrite_temp' in st.session_state:
+                default_text = st.session_state.copy_to_rewrite_temp
+            
+            rewrite_text_input = st.text_area("아래에 영어 작문을 입력하세요", 
+                                            value=default_text,
+                                            height=200, 
+                                            key="text_tab2")
+            
+            level_option = st.radio(
+                "작문 수준 선택",
+                options=["비슷한 수준", "약간 높은 수준", "고급 수준"],
+                horizontal=True
+            )
+            
+            level_map = {
+                "비슷한 수준": "similar",
+                "약간 높은 수준": "improved",
+                "고급 수준": "advanced"
+            }
+            
+            if st.button("재작성하기"):
+                if not rewrite_text_input:
+                    st.warning("텍스트를 입력해주세요.")
+                else:
+                    level = level_map.get(level_option, "similar")
+                    
+                    # 재작성 처리
+                    with st.spinner("텍스트를 재작성 중입니다..."):
+                        rewritten_text = rewrite_text(rewrite_text_input, level)
+                        
+                        # 재작성된 텍스트를 세션 상태에 저장
+                        if 'rewritten_text' not in st.session_state:
+                            st.session_state.rewritten_text = {}
+                        
+                        st.session_state.rewritten_text[level] = rewritten_text
+                        
+                        # 기록에 추가
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        st.session_state.history.append({
+                            'timestamp': timestamp,
+                            'text': rewrite_text_input,
+                            'action': f"재작성 ({level_option})"
+                        })
+        
+        with right_col:
+            st.subheader("재작성 결과")
+            
+            if 'rewritten_text' in st.session_state and st.session_state.rewritten_text:
+                level = level_map.get(level_option, "similar")
+                
+                if level in st.session_state.rewritten_text:
+                    rewritten = st.session_state.rewritten_text[level]
+                    st.text_area("재작성된 텍스트", value=rewritten, height=250, key="rewritten_result")
+                    
+                    # 음성 옵션 추가
+                    st.subheader("본문 읽기 옵션")
+                    voice_options = {
+                        "Jenny (여성, 미국)": "en-US-JennyNeural",
+                        "Guy (남성, 미국)": "en-US-GuyNeural",
+                        "Aria (여성, 영국)": "en-GB-SoniaNeural"
+                    }
+                    selected_voice = st.selectbox(
+                        "음성 선택",
+                        options=list(voice_options.keys()),
+                        key="voice_selection"
+                    )
+                    
+                    # 재작성 텍스트 다운로드 및 음성 변환 버튼
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # 텍스트 다운로드 버튼
+                        if rewritten:
+                            text_output = io.BytesIO()
+                            text_output.write(rewritten.encode('utf-8'))
+                            text_output.seek(0)
+                            
+                            st.download_button(
+                                label="텍스트 다운로드",
+                                data=text_output,
                                 file_name=f"rewritten_text_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
                                 mime="text/plain"
                             )
+                    
+                    with col2:
+                        # 음성 파일 다운로드 버튼
+                        if rewritten:
+                            if st.button("음성 파일 생성", key="generate_speech"):
+                                with st.spinner("음성 파일을 생성 중입니다..."):
+                                    # 선택된 음성 모델 가져오기
+                                    voice_model = voice_options[selected_voice]
+                                    
+                                    # 임시 파일 경로 생성
+                                    temp_dir = tempfile.gettempdir()
+                                    audio_file_path = os.path.join(temp_dir, f"speech_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
+                                    
+                                    # 비동기 함수 실행을 위한 런타임 설정
+                                    loop = asyncio.new_event_loop()
+                                    asyncio.set_event_loop(loop)
+                                    audio_path = loop.run_until_complete(text_to_speech(rewritten, voice_model, audio_file_path))
+                                    
+                                    # 세션 상태에 오디오 파일 경로 저장
+                                    st.session_state.audio_path = audio_path
+                                    st.success("음성 파일이 생성되었습니다!")
+                                    st.experimental_rerun()  # 재실행하여 오디오 플레이어 표시
+            
+                    # 오디오 플레이어 표시
+                    if 'audio_path' in st.session_state and os.path.exists(st.session_state.audio_path):
+                        st.subheader("본문 듣기")
                         
-                        # 원본과 재작성 텍스트 비교
-                        if rewrite_text_input and rewritten:
-                            st.subheader("원본 vs 재작성 비교")
+                        # 오디오 재생 상태 관리
+                        if 'audio_playing' not in st.session_state:
+                            st.session_state.audio_playing = True
+                        
+                        # 본문 듣기 토글 버튼
+                        play_col, download_col = st.columns([3, 1])
+                        
+                        with play_col:
+                            # 토글 버튼 로직
+                            button_label = "⏹️ 음성 정지" if st.session_state.audio_playing else "▶️ 음성 재생"
+                            if st.button(button_label, key="toggle_audio"):
+                                # 토글 상태 변경
+                                st.session_state.audio_playing = not st.session_state.audio_playing
+                                st.experimental_rerun()
                             
-                            comparison_data = []
-                            original_sentences = custom_sent_tokenize(rewrite_text_input)
-                            rewritten_sentences = custom_sent_tokenize(rewritten)
+                            # 현재 상태에 따라 오디오 플레이어 표시
+                            if st.session_state.audio_playing:
+                                audio_html = get_audio_player_html(st.session_state.audio_path, loop_count=5)
+                                st.markdown(audio_html, unsafe_allow_html=True)
+                        
+                        with download_col:
+                            with open(st.session_state.audio_path, "rb") as f:
+                                audio_bytes = f.read()
                             
-                            # 문장 단위로 비교 (더 짧은 리스트 기준)
-                            for i in range(min(len(original_sentences), len(rewritten_sentences))):
-                                comparison_data.append({
-                                    "원본": original_sentences[i],
-                                    "재작성": rewritten_sentences[i]
-                                })
-                            
-                            if comparison_data:
-                                st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
-                else:
-                    st.info("텍스트를 입력하고 재작성 버튼을 클릭하세요.")
+                            # 음성 파일 다운로드 버튼
+                            st.download_button(
+                                label="음성 다운로드",
+                                data=audio_bytes,
+                                file_name=f"audio_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
+                                mime="audio/wav"
+                            )
+            
+                    # 원본과 재작성 텍스트 비교
+                    if rewrite_text_input and rewritten:
+                        st.subheader("원본 vs 재작성 비교")
+                        
+                        comparison_data = []
+                        original_sentences = custom_sent_tokenize(rewrite_text_input)
+                        rewritten_sentences = custom_sent_tokenize(rewritten)
+                        
+                        # 문장 단위로 비교 (더 짧은 리스트 기준)
+                        for i in range(min(len(original_sentences), len(rewritten_sentences))):
+                            comparison_data.append({
+                                "원본": original_sentences[i],
+                                "재작성": rewritten_sentences[i]
+                            })
+                        
+                        if comparison_data:
+                            st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
+            else:
+                st.info("텍스트를 입력하고 재작성 버튼을 클릭하세요.")
     
     # 내 작문 기록 탭
     with tabs[2]:
-        if current_tab == 2:  # 이 탭이 활성화되어 있을 때만 내용 표시
-            st.subheader("내 작문 기록")
-            if not st.session_state.history:
-                st.info("아직 기록이 없습니다.")
-            else:
-                history_df = pd.DataFrame(st.session_state.history)
-                st.dataframe(history_df)
-                
-                # 오류 수 추이 차트
-                if len(history_df) > 1 and 'error_count' in history_df.columns:
-                    fig = px.line(history_df, x='timestamp', y='error_count', 
-                                title='문법 오류 수 추이',
-                                labels={'timestamp': '날짜', 'error_count': '오류 수'})
-                    st.plotly_chart(fig, use_container_width=True)
+        st.subheader("내 작문 기록")
+        if not st.session_state.history:
+            st.info("아직 기록이 없습니다.")
+        else:
+            history_df = pd.DataFrame(st.session_state.history)
+            st.dataframe(history_df)
+            
+            # 오류 수 추이 차트
+            if len(history_df) > 1 and 'error_count' in history_df.columns:
+                fig = px.line(history_df, x='timestamp', y='error_count', 
+                            title='문법 오류 수 추이',
+                            labels={'timestamp': '날짜', 'error_count': '오류 수'})
+                st.plotly_chart(fig, use_container_width=True)
 
 # 교사 페이지
 def show_teacher_page():
@@ -949,16 +1102,16 @@ def show_teacher_page():
         # 모든 분석을 한 번에 실행하는 버튼
         with col1:
             if st.button("전체 분석하기", key="teacher_analyze_all", use_container_width=True):
-                    if not user_text:
-                        st.warning("텍스트를 입력해주세요.")
-                    else:
-                        try:
-                            # 문법 오류 검사
-                            grammar_errors = check_grammar(user_text)
-                        except Exception as e:
-                            st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
-                            grammar_errors = []
-                        
+                if not user_text:
+                    st.warning("텍스트를 입력해주세요.")
+                else:
+                    # 문법 오류 검사
+                    try:
+                        grammar_errors = check_grammar(user_text)
+                    except Exception as e:
+                        st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
+                        grammar_errors = []
+                    
                     # 어휘 분석
                     vocab_analysis = analyze_vocabulary(user_text)
                     
@@ -1037,22 +1190,22 @@ def show_teacher_page():
                 diversity_score = st.session_state.teacher_analysis_results['diversity_score']
                 vocab_level = st.session_state.teacher_analysis_results['vocab_level']
                         
-                # 단어 빈도 시각화
+                        # 단어 빈도 시각화
                 fig = plot_word_frequency(vocab_analysis['word_freq'])
                 if fig:
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                # 어휘 다양성 점수
+                            st.plotly_chart(fig, use_container_width=True)
+                        
+                        # 어휘 다양성 점수
                 st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
-                
-                # 어휘 수준 평가
+                        
+                        # 어휘 수준 평가
                 level_df = pd.DataFrame({
-                    '수준': ['기초', '중급', '고급'],
-                    '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
-                })
-                
+                            '수준': ['기초', '중급', '고급'],
+                            '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
+                        })
+                        
                 fig = px.pie(level_df, values='비율', names='수준', 
-                            title='어휘 수준 분포')
+                                    title='어휘 수준 분포')
                 st.plotly_chart(fig, use_container_width=True)
         
         with result_tab3:
@@ -1260,3 +1413,71 @@ def evaluate_advanced_vocabulary(text):
     
     vocab_score = (len(rare_words) * 2 + len(academic_words)) / max(len(words), 1)
     return vocab_score
+
+# 텍스트를 음성으로 변환하는 함수 추가 (라인 360 이후에 추가)
+async def text_to_speech(text, voice="en-US-JennyNeural", output_file=None):
+    """
+    텍스트를 음성으로 변환하고 파일로 저장합니다.
+    
+    Parameters:
+    - text: 음성으로 변환할 텍스트
+    - voice: 음성 모델 (기본값: 'en-US-JennyNeural')
+    - output_file: 출력 파일 경로 (None인 경우 임시 파일 생성)
+    
+    Returns:
+    - 음성 파일 경로
+    """
+    if not text:
+        return None
+    
+    # 출력 파일이 지정되지 않은 경우 임시 파일 생성
+    if output_file is None:
+        temp_dir = tempfile.gettempdir()
+        output_file = os.path.join(temp_dir, f"speech_{random.randint(1000, 9999)}.wav")
+    
+    # 텍스트를 음성으로 변환하고 파일로 저장
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(output_file)
+    
+    return output_file
+
+# 음성 파일을 HTML 오디오 요소로 변환하는 함수
+def get_audio_player_html(audio_path, loop_count=5, autoplay=True):
+    """
+    음성 파일을 재생할 수 있는 HTML 오디오 플레이어를 생성합니다.
+    
+    Parameters:
+    - audio_path: 음성 파일 경로
+    - loop_count: 반복 재생 횟수 (기본값: 5)
+    - autoplay: 자동 재생 여부 (기본값: True)
+    
+    Returns:
+    - HTML 코드 문자열
+    """
+    if not audio_path or not os.path.exists(audio_path):
+        return ""
+    
+    # 파일을 base64로 인코딩
+    with open(audio_path, "rb") as f:
+        audio_bytes = f.read()
+    
+    audio_b64 = base64.b64encode(audio_bytes).decode()
+    audio_html = f"""
+        <audio id="audio-player" controls {' loop' if loop_count > 1 else ''} {' autoplay' if autoplay else ''}>
+            <source src="data:audio/wav;base64,{audio_b64}" type="audio/wav">
+            Your browser does not support the audio element.
+        </audio>
+        <script>
+            var audioPlayer = document.getElementById('audio-player');
+            var playCount = 0;
+            var maxPlays = {loop_count};
+            
+            audioPlayer.addEventListener('ended', function() {{
+                playCount++;
+                if (playCount < maxPlays) {{
+                    audioPlayer.play();
+                }}
+            }});
+        </script>
+    """
+    return audio_html
