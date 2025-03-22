@@ -1352,9 +1352,14 @@ def show_student_page():
         with result_tab2:
             if 'analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.analysis_results:
                 vocab_analysis = st.session_state.analysis_results['vocab_analysis']
-                diversity_score = st.session_state.analysis_results['diversity_score']
-                vocab_level = st.session_state.analysis_results['vocab_level']
-                        
+                
+                # 어휘 다양성 점수 처리
+                if 'diversity_score' in st.session_state.analysis_results:
+                    diversity_score = st.session_state.analysis_results.get('diversity_score', 0)
+                    st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
+                else:
+                    st.metric("어휘 다양성 점수", "0.00")
+                
                 # 단어 빈도 시각화 - 에러 방지를 위한 예외 처리 추가
                 fig = None  # fig 변수를 명시적으로 초기화
                 if vocab_analysis and 'word_freq' in vocab_analysis and vocab_analysis['word_freq']:
@@ -1362,19 +1367,14 @@ def show_student_page():
                 
                 # fig 변수 확인 후 시각화
                 if fig is not None:
-                        st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
-                        
-                        # 어휘 다양성 점수
-                if 'diversity_score' in st.session_state.analysis_results:
-                    diversity_score = st.session_state.analysis_results.get('diversity_score', 0)
-                    st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
-                else:
-                    st.metric("어휘 다양성 점수", "0.00")
-                        
-                        # 어휘 수준 평가
-            if vocab_level:
+                
+                # 어휘 수준 평가
+                if 'vocab_level' in st.session_state.analysis_results:
+                    vocab_level = st.session_state.analysis_results['vocab_level']
+                    if vocab_level:
                         level_df = pd.DataFrame({
                             '수준': ['기초', '중급', '고급'],
                             '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
@@ -1383,8 +1383,10 @@ def show_student_page():
                         fig = px.pie(level_df, values='비율', names='수준', 
                                 title='어휘 수준 분포')
                         st.plotly_chart(fig, use_container_width=True)
-            else:
-                    st.info("어휘 수준 평가를 위한 데이터가 충분하지 않습니다.")
+                    else:
+                        st.info("어휘 수준 평가를 위한 데이터가 충분하지 않습니다.")
+                else:
+                    st.info("어휘 수준 평가를 위한 데이터가 없습니다.")
         
         with result_tab3:
             if 'analysis_results' in st.session_state and 'stats' in st.session_state.analysis_results:
@@ -1746,9 +1748,14 @@ def show_teacher_page():
         with result_tab2:
             if 'teacher_analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.teacher_analysis_results:
                 vocab_analysis = st.session_state.teacher_analysis_results['vocab_analysis']
-                diversity_score = st.session_state.teacher_analysis_results['diversity_score']
-                vocab_level = st.session_state.teacher_analysis_results['vocab_level']
-                        
+                
+                # 어휘 다양성 점수 처리
+                if 'diversity_score' in st.session_state.teacher_analysis_results:
+                    diversity_score = st.session_state.teacher_analysis_results.get('diversity_score', 0)
+                    st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
+                else:
+                    st.metric("어휘 다양성 점수", "0.00")
+                
                 # 단어 빈도 시각화 - 에러 방지를 위한 예외 처리 추가
                 fig = None  # fig 변수를 명시적으로 초기화
                 if vocab_analysis and 'word_freq' in vocab_analysis and vocab_analysis['word_freq']:
@@ -1756,29 +1763,26 @@ def show_teacher_page():
                 
                 # fig 변수 확인 후 시각화
                 if fig is not None:
-                            st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
-                        
-                        # 어휘 다양성 점수
-                if 'diversity_score' in st.session_state.teacher_analysis_results:
-                    diversity_score = st.session_state.teacher_analysis_results.get('diversity_score', 0)
-                    st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
-                else:
-                    st.metric("어휘 다양성 점수", "0.00")
-                        
-                        # 어휘 수준 평가
-                if vocab_level:
-                    level_df = pd.DataFrame({
+                
+                # 어휘 수준 평가
+                if 'vocab_level' in st.session_state.teacher_analysis_results:
+                    vocab_level = st.session_state.teacher_analysis_results['vocab_level']
+                    if vocab_level:
+                        level_df = pd.DataFrame({
                             '수준': ['기초', '중급', '고급'],
                             '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
                         })
                         
-                fig = px.pie(level_df, values='비율', names='수준', 
-                                    title='어휘 수준 분포')
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                    st.info("어휘 수준 평가를 위한 데이터가 충분하지 않습니다.")
+                        fig = px.pie(level_df, values='비율', names='수준', 
+                                title='어휘 수준 분포')
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("어휘 수준 평가를 위한 데이터가 충분하지 않습니다.")
+                else:
+                    st.info("어휘 수준 평가를 위한 데이터가 없습니다.")
         
         with result_tab3:
             if 'teacher_analysis_results' in st.session_state and 'stats' in st.session_state.teacher_analysis_results:
