@@ -475,15 +475,26 @@ def display_grammar_errors(text, errors):
             error_text = "오류 위치 확인 실패"
         
         source = error.get('source', '기본 검사기')
+        message = error.get('message', '')
         
         # 수정 제안 처리 개선
         suggestions = "수정 제안 없음"
         replacements = error.get('replacements', [])
         
-        if replacements:
+        # 연속된 공백 오류 처리 개선
+        if "consecutive spaces" in message.lower() or "too many spaces" in message.lower():
+            suggestions = "중복 공백 제거 필요"
+            # 실제 수정 제안 생성 - 공백 하나로 교체
+            if error_text.strip() == '':
+                suggestions = "공백을 하나만 사용하세요"
+        elif replacements:
             # replacements가 문자열 리스트인 경우
             if isinstance(replacements, list) and all(isinstance(item, str) for item in replacements):
-                suggestions = ", ".join(replacements[:3])
+                if all(item.strip() == '' for item in replacements):
+                    # 빈 문자열이나 공백만 있는 경우
+                    suggestions = "공백 관련 오류: 적절한 간격으로 수정하세요"
+                else:
+                    suggestions = ", ".join(replacements[:3])
             # replacements가 딕셔너리나 다른 객체의 리스트인 경우
             elif isinstance(replacements, list) and len(replacements) > 0:
                 # 첫 3개 항목만 사용하고 문자열로 변환
@@ -521,7 +532,7 @@ def display_grammar_errors(text, errors):
             context = f"{prefix}{highlighted}{suffix}"
         
         error_data.append({
-            "오류": error_text,
+            "오류": error_text if error_text.strip() else "(여러 공백)",  # 공백만 있는 경우 특별 처리
             "오류 내용": error['message'],
             "수정 제안": suggestions,
             "검출 도구": source
@@ -542,15 +553,41 @@ def display_grammar_errors(text, errors):
             prefix = text[start:error['offset']]
             suffix = text[error['offset'] + error['errorLength']:end]
             
-            # HTML로 강조 표시
-            html = f"""
-            <p>{i+1}. {prefix}<span style="color:red; font-weight:bold;">{error_text}</span>{suffix}</p>
-            <p><b>오류:</b> {error.get('message', '')}</p>
-            <p><b>수정 제안:</b> {error.get('replacements', [])[:3]}</p>
-            <hr>
-            """
+            # 오류 메시지와 수정 제안
+            message = error.get('message', '')
+            replacements = error.get('replacements', [])
+            
+            # 연속된 공백 오류인 경우 특별 처리
+            if "consecutive spaces" in message.lower() or "too many spaces" in message.lower():
+                suggestions = "중복 공백을 하나의 공백으로 수정하세요"
+            elif replacements and isinstance(replacements, list):
+                if all(isinstance(item, str) for item in replacements):
+                    suggestions = ", ".join(replacements[:3])
+                else:
+                    suggestions = "적절한 대체어로 수정하세요"
+            else:
+                suggestions = "수정 제안 없음"
+            
+            # HTML로 강조 표시 (공백은 특수 처리)
+            if error_text.strip() == '':
+                # 공백만 있는 경우, 시각적으로 표시
+                error_display = "&nbsp;&nbsp;&#8596;&nbsp;&nbsp;"  # 양방향 화살표와 공백
+                html = f"""
+                <p>{i+1}. {prefix}<span style="color:red; font-weight:bold; background-color:#FFEEEE;">{error_display}</span>{suffix}</p>
+                <p><b>오류:</b> {message}</p>
+                <p><b>수정 제안:</b> {suggestions}</p>
+                <hr>
+                """
+            else:
+                html = f"""
+                <p>{i+1}. {prefix}<span style="color:red; font-weight:bold;">{error_text}</span>{suffix}</p>
+                <p><b>오류:</b> {message}</p>
+                <p><b>수정 제안:</b> {suggestions}</p>
+                <hr>
+                """
             st.markdown(html, unsafe_allow_html=True)
-        except:
+        except Exception as e:
+            st.warning(f"오류 컨텍스트 표시 중 문제 발생: {e}")
             continue
     
     # 디버깅 정보 (개발 중에만 사용)
