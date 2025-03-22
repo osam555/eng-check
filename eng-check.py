@@ -635,279 +635,296 @@ def show_student_page():
         st.session_state.user_type = None
         st.rerun()
     
+    # 탭 인덱스 초기화 (없는 경우)
+    if 'active_tab' not in st.session_state:
+        st.session_state.active_tab = 0
+    
+    # 탭 생성
     tabs = st.tabs(["영작문 검사", "영작문 재작성", "내 작문 기록"])
+    
+    # 현재 활성 탭 선택
+    current_tab = st.session_state.active_tab
     
     # 영작문 검사 탭
     with tabs[0]:
-        st.subheader("영작문 입력")
-        user_text = st.text_area("아래에 영어 작문을 입력하세요", height=200, key="text_tab1")
-        
-        col1, col2 = st.columns([3, 1])
-        
-        # 모든 분석을 한 번에 실행하는 버튼
-        with col1:
-            if st.button("전체 분석하기", use_container_width=True, key="analyze_button"):
-                    if not user_text:
-                        st.warning("텍스트를 입력해주세요.")
-                    else:
-                    # 텍스트 통계 분석
-                        stats = analyze_text(user_text)
-                    
-                        try:
-                            # 문법 오류 검사
-                            grammar_errors = check_grammar(user_text)
-                        except Exception as e:
-                            st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
-                            grammar_errors = []
+        if current_tab == 0:  # 이 탭이 활성화되어 있을 때만 내용 표시
+            st.subheader("영작문 입력")
+            user_text = st.text_area("아래에 영어 작문을 입력하세요", height=200, key="text_tab1")
+            
+            col1, col2 = st.columns([3, 1])
+            
+            # 모든 분석을 한 번에 실행하는 버튼
+            with col1:
+                if st.button("전체 분석하기", use_container_width=True, key="analyze_button"):
+                        if not user_text:
+                            st.warning("텍스트를 입력해주세요.")
+                        else:
+                        # 텍스트 통계 분석
+                            stats = analyze_text(user_text)
                         
-                    # 어휘 분석
-                    vocab_analysis = analyze_vocabulary(user_text)
-                    
-                    # 어휘 다양성 점수
-                    diversity_score = calculate_lexical_diversity(user_text)
-                    
-                    # 어휘 수준 평가
-                    vocab_level = evaluate_vocabulary_level(user_text)
-                    
-                    # 세션 상태에 결과 저장
-                    if 'analysis_results' not in st.session_state:
-                        st.session_state.analysis_results = {}
-                    
-                    st.session_state.analysis_results = {
-                        'stats': stats,
-                        'grammar_errors': grammar_errors,
-                        'vocab_analysis': vocab_analysis,
-                        'diversity_score': diversity_score,
-                        'vocab_level': vocab_level,
-                        'original_text': user_text  # 원본 텍스트도 저장
-                    }
+                            try:
+                                # 문법 오류 검사
+                                grammar_errors = check_grammar(user_text)
+                            except Exception as e:
+                                st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
+                                grammar_errors = []
                             
-                            # 기록에 저장
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    st.session_state.history.append({
-                                'timestamp': timestamp,
-                                'text': user_text,
-                        'error_count': len(grammar_errors) if grammar_errors else 0
-                    })
-                    
-                    st.success("분석이 완료되었습니다! 아래 탭에서 결과를 확인하세요.")
-                    
-                    # 분석이 완료되었음을 표시하는 플래그
-                    st.session_state.analysis_completed = True
-                    st.rerun()  # 재실행하여 버튼 표시 업데이트
-        
-        # 재작성 추천 버튼 추가
-        with col2:
-            # 분석 결과가 있는 경우에만 버튼 표시
-            if 'analysis_results' in st.session_state and 'original_text' in st.session_state.analysis_results:
-                if st.button("✨ 영작문 재작성 추천 ✨", 
-                          key="rewrite_recommendation",
-                          use_container_width=True,
-                          help="분석 결과를 바탕으로 영작문을 더 좋은 표현으로 재작성해보세요!",
-                          type="primary"):
-                    # 텍스트를 세션 상태에 저장
-                    st.session_state.copy_to_rewrite = st.session_state.analysis_results['original_text']
-                    
-                    # 사용자에게 안내 메시지 표시
-                    st.success("텍스트가 복사되었습니다. 상단의 '영작문 재작성' 탭을 클릭하세요!")
-                    st.balloons()  # 시각적 효과 추가
-        
-        # 결과 표시를 위한 탭
-        result_tab1, result_tab2, result_tab3 = st.tabs(["문법 검사", "어휘 분석", "텍스트 통계"])
-        
-        with result_tab1:
-            if 'analysis_results' in st.session_state and 'grammar_errors' in st.session_state.analysis_results:
-                grammar_errors = st.session_state.analysis_results['grammar_errors']
-                
-                if grammar_errors:
-                    st.subheader("문법 오류 목록")
-                    
-                    error_data = []
-                    for error in grammar_errors:
-                        error_data.append({
-                            "오류": user_text[error['offset']:error['offset'] + error['errorLength']],
-                            "오류 내용": error['message'],
-                            "수정 제안": error['replacements']
-                        })
-                    
-                    st.dataframe(pd.DataFrame(error_data))
-                else:
-                    st.success("문법 오류가 없습니다!")
-        
-        with result_tab2:
-            if 'analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.analysis_results:
-                vocab_analysis = st.session_state.analysis_results['vocab_analysis']
-                diversity_score = st.session_state.analysis_results['diversity_score']
-                vocab_level = st.session_state.analysis_results['vocab_level']
+                        # 어휘 분석
+                        vocab_analysis = analyze_vocabulary(user_text)
                         
-                # 단어 빈도 시각화
-                fig = plot_word_frequency(vocab_analysis['word_freq'])
-                if fig:
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                # 어휘 다양성 점수
-                st.metric("어휘 다양성 점수", f"{diversity_score:.2f}", 
-                         delta="높을수록 다양한 어휘 사용")
-                
-                # 어휘 수준 평가
-                level_df = pd.DataFrame({
-                    '수준': ['기초', '중급', '고급'],
-                    '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
-                })
-                
-                fig = px.pie(level_df, values='비율', names='수준', 
-                            title='어휘 수준 분포',
-                            color_discrete_sequence=px.colors.sequential.Viridis)
-                st.plotly_chart(fig, use_container_width=True)
-        
-        with result_tab3:
-            if 'analysis_results' in st.session_state and 'stats' in st.session_state.analysis_results:
-                stats = st.session_state.analysis_results['stats']
-                    
-                st.subheader("텍스트 통계")
-                    
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("단어 수", stats['word_count'])
-                    st.metric("문장 수", stats['sentence_count'])
-                with col2:
-                    st.metric("평균 단어 길이", stats['avg_word_length'])
-                    st.metric("평균 문장 길이 (단어)", stats['avg_sentence_length'])
-                    
-                    st.metric("어휘 크기 (고유 단어 수)", stats['vocabulary_size'])
-                    
-                    # 게이지 차트로 표현하기
-                    progress_col1, progress_col2 = st.columns(2)
-                with progress_col1:
-                        # 평균 문장 길이 게이지 (적정 영어 문장 길이: 15-20 단어)
-                    sentence_gauge = min(1.0, stats['avg_sentence_length'] / 20)
-                    st.progress(sentence_gauge)
-                    st.caption(f"문장 길이 적정성: {int(sentence_gauge * 100)}%")
-                    
-                with progress_col2:
-                        # 어휘 다양성 게이지
-                    vocab_ratio = stats['vocabulary_size'] / max(1, stats['word_count'])
-                    st.progress(min(1.0, vocab_ratio * 2))  # 0.5 이상이면 100%
-                    st.caption(f"어휘 다양성: {int(min(1.0, vocab_ratio * 2) * 100)}%")
-    
-    # 영작문 재작성 탭
-    with tabs[1]:
-        st.subheader("영작문 재작성")
-        
-        # 왼쪽 열: 입력 및 옵션
-        left_col, right_col = st.columns(2)
-        
-        with left_col:
-            # 분석 탭에서 넘어온 경우 해당 텍스트를 자동으로 로드
-            default_text = ""
-            if 'copy_to_rewrite' in st.session_state:
-                default_text = st.session_state.copy_to_rewrite
-                st.success("분석 결과 텍스트가 로드되었습니다!")
-                # 한 번 사용 후 임시 변수로 옮겨 저장
-                st.session_state.copy_to_rewrite_temp = default_text
-                del st.session_state.copy_to_rewrite
-            elif 'copy_to_rewrite_temp' in st.session_state:
-                default_text = st.session_state.copy_to_rewrite_temp
-            
-            rewrite_text_input = st.text_area("아래에 영어 작문을 입력하세요", 
-                                            value=default_text,
-                                            height=200, 
-                                            key="text_tab2")
-            
-            level_option = st.radio(
-                "작문 수준 선택",
-                options=["비슷한 수준", "약간 높은 수준", "고급 수준"],
-                horizontal=True
-            )
-            
-            level_map = {
-                "비슷한 수준": "similar",
-                "약간 높은 수준": "improved",
-                "고급 수준": "advanced"
-            }
-            
-            if st.button("재작성하기"):
-                if not rewrite_text_input:
-                    st.warning("텍스트를 입력해주세요.")
-                else:
-                    level = level_map.get(level_option, "similar")
-                    
-                    # 재작성 처리
-                    with st.spinner("텍스트를 재작성 중입니다..."):
-                        rewritten_text = rewrite_text(rewrite_text_input, level)
+                        # 어휘 다양성 점수
+                        diversity_score = calculate_lexical_diversity(user_text)
                         
-                        # 재작성된 텍스트를 세션 상태에 저장
-                        if 'rewritten_text' not in st.session_state:
-                            st.session_state.rewritten_text = {}
+                        # 어휘 수준 평가
+                        vocab_level = evaluate_vocabulary_level(user_text)
                         
-                        st.session_state.rewritten_text[level] = rewritten_text
+                        # 세션 상태에 결과 저장
+                        if 'analysis_results' not in st.session_state:
+                            st.session_state.analysis_results = {}
                         
-                        # 기록에 추가
+                        st.session_state.analysis_results = {
+                            'stats': stats,
+                            'grammar_errors': grammar_errors,
+                            'vocab_analysis': vocab_analysis,
+                            'diversity_score': diversity_score,
+                            'vocab_level': vocab_level,
+                            'original_text': user_text  # 원본 텍스트도 저장
+                        }
+                                
+                                # 기록에 저장
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         st.session_state.history.append({
-                            'timestamp': timestamp,
-                            'text': rewrite_text_input,
-                            'action': f"재작성 ({level_option})"
+                                    'timestamp': timestamp,
+                                    'text': user_text,
+                            'error_count': len(grammar_errors) if grammar_errors else 0
                         })
-        
-        with right_col:
-            st.subheader("재작성 결과")
+                        
+                        st.success("분석이 완료되었습니다! 아래 탭에서 결과를 확인하세요.")
+                        
+                        # 분석이 완료되었음을 표시하는 플래그
+                        st.session_state.analysis_completed = True
+                        st.rerun()  # 재실행하여 버튼 표시 업데이트
             
-            if 'rewritten_text' in st.session_state and st.session_state.rewritten_text:
-                level = level_map.get(level_option, "similar")
-                
-                if level in st.session_state.rewritten_text:
-                    rewritten = st.session_state.rewritten_text[level]
-                    st.text_area("재작성된 텍스트", value=rewritten, height=250, key="rewritten_result")
+            # 재작성 추천 버튼 추가
+            with col2:
+                # 분석 결과가 있는 경우에만 버튼 표시
+                if 'analysis_results' in st.session_state and 'original_text' in st.session_state.analysis_results:
+                    if st.button("✨ 영작문 재작성 추천 ✨", 
+                              key="rewrite_recommendation",
+                              use_container_width=True,
+                              help="분석 결과를 바탕으로 영작문을 더 좋은 표현으로 재작성해보세요!",
+                              type="primary"):
+                        # 텍스트를 세션 상태에 저장
+                        st.session_state.copy_to_rewrite = st.session_state.analysis_results['original_text']
+                        
+                        # 활성 탭을 재작성 탭(인덱스 1)으로 변경
+                        st.session_state.active_tab = 1
+                        
+                        # 성공 메시지와 이펙트
+                        st.success("텍스트가 복사되었습니다. 재작성 탭으로 이동합니다!")
+                        st.balloons()  # 시각적 효과 추가
+                        
+                        # 페이지 재실행하여 탭 변경 적용
+                        st.rerun()
+            
+            # 결과 표시를 위한 탭
+            result_tab1, result_tab2, result_tab3 = st.tabs(["문법 검사", "어휘 분석", "텍스트 통계"])
+            
+            with result_tab1:
+                if 'analysis_results' in st.session_state and 'grammar_errors' in st.session_state.analysis_results:
+                    grammar_errors = st.session_state.analysis_results['grammar_errors']
                     
-                    # 재작성 텍스트 복사 기능 대신 다운로드 기능 제공
-                    if rewritten:
-                        output = io.BytesIO()
-                        output.write(rewritten.encode('utf-8'))
-                        output.seek(0)
+                    if grammar_errors:
+                        st.subheader("문법 오류 목록")
                         
-                        st.download_button(
-                            label="재작성 텍스트 다운로드",
-                            data=output,
-                            file_name=f"rewritten_text_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                            mime="text/plain"
-                        )
-                    
-                    # 원본과 재작성 텍스트 비교
-                    if rewrite_text_input and rewritten:
-                        st.subheader("원본 vs 재작성 비교")
-                        
-                        comparison_data = []
-                        original_sentences = custom_sent_tokenize(rewrite_text_input)
-                        rewritten_sentences = custom_sent_tokenize(rewritten)
-                        
-                        # 문장 단위로 비교 (더 짧은 리스트 기준)
-                        for i in range(min(len(original_sentences), len(rewritten_sentences))):
-                            comparison_data.append({
-                                "원본": original_sentences[i],
-                                "재작성": rewritten_sentences[i]
+                        error_data = []
+                        for error in grammar_errors:
+                            error_data.append({
+                                "오류": user_text[error['offset']:error['offset'] + error['errorLength']],
+                                "오류 내용": error['message'],
+                                "수정 제안": error['replacements']
                             })
                         
-                        if comparison_data:
-                            st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
-            else:
-                st.info("텍스트를 입력하고 재작성 버튼을 클릭하세요.")
+                        st.dataframe(pd.DataFrame(error_data))
+                    else:
+                        st.success("문법 오류가 없습니다!")
+            
+            with result_tab2:
+                if 'analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.analysis_results:
+                    vocab_analysis = st.session_state.analysis_results['vocab_analysis']
+                    diversity_score = st.session_state.analysis_results['diversity_score']
+                    vocab_level = st.session_state.analysis_results['vocab_level']
+                            
+                    # 단어 빈도 시각화
+                    fig = plot_word_frequency(vocab_analysis['word_freq'])
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                    # 어휘 다양성 점수
+                    st.metric("어휘 다양성 점수", f"{diversity_score:.2f}", 
+                             delta="높을수록 다양한 어휘 사용")
+                    
+                    # 어휘 수준 평가
+                    level_df = pd.DataFrame({
+                        '수준': ['기초', '중급', '고급'],
+                        '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
+                    })
+                    
+                    fig = px.pie(level_df, values='비율', names='수준', 
+                                title='어휘 수준 분포',
+                                color_discrete_sequence=px.colors.sequential.Viridis)
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            with result_tab3:
+                if 'analysis_results' in st.session_state and 'stats' in st.session_state.analysis_results:
+                    stats = st.session_state.analysis_results['stats']
+                        
+                    st.subheader("텍스트 통계")
+                        
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("단어 수", stats['word_count'])
+                        st.metric("문장 수", stats['sentence_count'])
+                    with col2:
+                        st.metric("평균 단어 길이", stats['avg_word_length'])
+                        st.metric("평균 문장 길이 (단어)", stats['avg_sentence_length'])
+                        
+                        st.metric("어휘 크기 (고유 단어 수)", stats['vocabulary_size'])
+                        
+                        # 게이지 차트로 표현하기
+                        progress_col1, progress_col2 = st.columns(2)
+                    with progress_col1:
+                            # 평균 문장 길이 게이지 (적정 영어 문장 길이: 15-20 단어)
+                        sentence_gauge = min(1.0, stats['avg_sentence_length'] / 20)
+                        st.progress(sentence_gauge)
+                        st.caption(f"문장 길이 적정성: {int(sentence_gauge * 100)}%")
+                        
+                    with progress_col2:
+                            # 어휘 다양성 게이지
+                        vocab_ratio = stats['vocabulary_size'] / max(1, stats['word_count'])
+                        st.progress(min(1.0, vocab_ratio * 2))  # 0.5 이상이면 100%
+                        st.caption(f"어휘 다양성: {int(min(1.0, vocab_ratio * 2) * 100)}%")
+        
+    # 영작문 재작성 탭
+    with tabs[1]:
+        if current_tab == 1:  # 이 탭이 활성화되어 있을 때만 내용 표시
+            st.subheader("영작문 재작성")
+            
+            # 왼쪽 열: 입력 및 옵션
+            left_col, right_col = st.columns(2)
+            
+            with left_col:
+                # 분석 탭에서 넘어온 경우 해당 텍스트를 자동으로 로드
+                default_text = ""
+                if 'copy_to_rewrite' in st.session_state:
+                    default_text = st.session_state.copy_to_rewrite
+                    st.success("분석 결과 텍스트가 로드되었습니다!")
+                    # 한 번 사용 후 임시 변수로 옮겨 저장
+                    st.session_state.copy_to_rewrite_temp = default_text
+                    del st.session_state.copy_to_rewrite
+                elif 'copy_to_rewrite_temp' in st.session_state:
+                    default_text = st.session_state.copy_to_rewrite_temp
+                
+                rewrite_text_input = st.text_area("아래에 영어 작문을 입력하세요", 
+                                                value=default_text,
+                                                height=200, 
+                                                key="text_tab2")
+                
+                level_option = st.radio(
+                    "작문 수준 선택",
+                    options=["비슷한 수준", "약간 높은 수준", "고급 수준"],
+                    horizontal=True
+                )
+                
+                level_map = {
+                    "비슷한 수준": "similar",
+                    "약간 높은 수준": "improved",
+                    "고급 수준": "advanced"
+                }
+                
+                if st.button("재작성하기"):
+                    if not rewrite_text_input:
+                        st.warning("텍스트를 입력해주세요.")
+                    else:
+                        level = level_map.get(level_option, "similar")
+                        
+                        # 재작성 처리
+                        with st.spinner("텍스트를 재작성 중입니다..."):
+                            rewritten_text = rewrite_text(rewrite_text_input, level)
+                            
+                            # 재작성된 텍스트를 세션 상태에 저장
+                            if 'rewritten_text' not in st.session_state:
+                                st.session_state.rewritten_text = {}
+                            
+                            st.session_state.rewritten_text[level] = rewritten_text
+                            
+                            # 기록에 추가
+                            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            st.session_state.history.append({
+                                'timestamp': timestamp,
+                                'text': rewrite_text_input,
+                                'action': f"재작성 ({level_option})"
+                            })
+                
+            with right_col:
+                st.subheader("재작성 결과")
+                
+                if 'rewritten_text' in st.session_state and st.session_state.rewritten_text:
+                    level = level_map.get(level_option, "similar")
+                    
+                    if level in st.session_state.rewritten_text:
+                        rewritten = st.session_state.rewritten_text[level]
+                        st.text_area("재작성된 텍스트", value=rewritten, height=250, key="rewritten_result")
+                        
+                        # 재작성 텍스트 복사 기능 대신 다운로드 기능 제공
+                        if rewritten:
+                            output = io.BytesIO()
+                            output.write(rewritten.encode('utf-8'))
+                            output.seek(0)
+                            
+                            st.download_button(
+                                label="재작성 텍스트 다운로드",
+                                data=output,
+                                file_name=f"rewritten_text_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                                mime="text/plain"
+                            )
+                        
+                        # 원본과 재작성 텍스트 비교
+                        if rewrite_text_input and rewritten:
+                            st.subheader("원본 vs 재작성 비교")
+                            
+                            comparison_data = []
+                            original_sentences = custom_sent_tokenize(rewrite_text_input)
+                            rewritten_sentences = custom_sent_tokenize(rewritten)
+                            
+                            # 문장 단위로 비교 (더 짧은 리스트 기준)
+                            for i in range(min(len(original_sentences), len(rewritten_sentences))):
+                                comparison_data.append({
+                                    "원본": original_sentences[i],
+                                    "재작성": rewritten_sentences[i]
+                                })
+                            
+                            if comparison_data:
+                                st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
+                else:
+                    st.info("텍스트를 입력하고 재작성 버튼을 클릭하세요.")
     
     # 내 작문 기록 탭
     with tabs[2]:
-        st.subheader("내 작문 기록")
-        if not st.session_state.history:
-            st.info("아직 기록이 없습니다.")
-        else:
-            history_df = pd.DataFrame(st.session_state.history)
-            st.dataframe(history_df)
-            
-            # 오류 수 추이 차트
-            if len(history_df) > 1 and 'error_count' in history_df.columns:
-                fig = px.line(history_df, x='timestamp', y='error_count', 
-                            title='문법 오류 수 추이',
-                            labels={'timestamp': '날짜', 'error_count': '오류 수'})
-                st.plotly_chart(fig, use_container_width=True)
+        if current_tab == 2:  # 이 탭이 활성화되어 있을 때만 내용 표시
+            st.subheader("내 작문 기록")
+            if not st.session_state.history:
+                st.info("아직 기록이 없습니다.")
+            else:
+                history_df = pd.DataFrame(st.session_state.history)
+                st.dataframe(history_df)
+                
+                # 오류 수 추이 차트
+                if len(history_df) > 1 and 'error_count' in history_df.columns:
+                    fig = px.line(history_df, x='timestamp', y='error_count', 
+                                title='문법 오류 수 추이',
+                                labels={'timestamp': '날짜', 'error_count': '오류 수'})
+                    st.plotly_chart(fig, use_container_width=True)
 
 # 교사 페이지
 def show_teacher_page():
