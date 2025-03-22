@@ -835,25 +835,29 @@ def show_student_page():
                 diversity_score = st.session_state.analysis_results['diversity_score']
                 vocab_level = st.session_state.analysis_results['vocab_level']
                         
-                        # 단어 빈도 시각화
-            fig = plot_word_frequency(vocab_analysis['word_freq'])
-            if fig:
+                # 단어 빈도 시각화 - 에러 방지를 위한 예외 처리 추가
+                if vocab_analysis and 'word_freq' in vocab_analysis and vocab_analysis['word_freq']:
+                    fig = plot_word_frequency(vocab_analysis['word_freq'])
+                    if fig:
                         st.plotly_chart(fig, use_container_width=True)
-                        
-                        # 어휘 다양성 점수
-                        st.metric("어휘 다양성 점수", f"{diversity_score:.2f}", 
-                                 delta="높을수록 다양한 어휘 사용")
-                        
-                        # 어휘 수준 평가
-                        level_df = pd.DataFrame({
-                            '수준': ['기초', '중급', '고급'],
-                            '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
-                        })
-                        
-                        fig = px.pie(level_df, values='비율', names='수준', 
-                                    title='어휘 수준 분포',
-                                    color_discrete_sequence=px.colors.sequential.Viridis)
-                        st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
+                
+                # 어휘 다양성 점수
+                st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
+                
+                # 어휘 수준 평가
+                if vocab_level:
+                    level_df = pd.DataFrame({
+                        '수준': ['기초', '중급', '고급'],
+                        '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
+                    })
+                    
+                    fig = px.pie(level_df, values='비율', names='수준', 
+                                title='어휘 수준 분포')
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("어휘 수준 평가를 위한 데이터가 충분하지 않습니다.")
         
         with result_tab3:
             if 'analysis_results' in st.session_state and 'stats' in st.session_state.analysis_results:
@@ -1190,23 +1194,29 @@ def show_teacher_page():
                 diversity_score = st.session_state.teacher_analysis_results['diversity_score']
                 vocab_level = st.session_state.teacher_analysis_results['vocab_level']
                         
-                        # 단어 빈도 시각화
-                fig = plot_word_frequency(vocab_analysis['word_freq'])
-                if fig:
-                            st.plotly_chart(fig, use_container_width=True)
-                        
-                        # 어휘 다양성 점수
+                # 단어 빈도 시각화 - 에러 방지를 위한 예외 처리 추가
+                if vocab_analysis and 'word_freq' in vocab_analysis and vocab_analysis['word_freq']:
+                    fig = plot_word_frequency(vocab_analysis['word_freq'])
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
+                
+                # 어휘 다양성 점수
                 st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
-                        
-                        # 어휘 수준 평가
-                level_df = pd.DataFrame({
-                            '수준': ['기초', '중급', '고급'],
-                            '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
-                        })
-                        
-                fig = px.pie(level_df, values='비율', names='수준', 
-                                    title='어휘 수준 분포')
-                st.plotly_chart(fig, use_container_width=True)
+                
+                # 어휘 수준 평가
+                if vocab_level:
+                    level_df = pd.DataFrame({
+                        '수준': ['기초', '중급', '고급'],
+                        '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
+                    })
+                    
+                    fig = px.pie(level_df, values='비율', names='수준', 
+                                title='어휘 수준 분포')
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("어휘 수준 평가를 위한 데이터가 충분하지 않습니다.")
         
         with result_tab3:
             if 'teacher_analysis_results' in st.session_state and 'stats' in st.session_state.teacher_analysis_results:
