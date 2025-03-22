@@ -26,6 +26,96 @@ import tempfile
 import os
 import base64
 
+# 텍스트를 음성으로 변환하는 함수
+async def text_to_speech(text, voice="en-US-JennyNeural", output_file=None):
+    """
+    텍스트를 음성으로 변환하고 파일로 저장합니다.
+    
+    Parameters:
+    - text: 음성으로 변환할 텍스트
+    - voice: 음성 모델 (기본값: 'en-US-JennyNeural')
+    - output_file: 출력 파일 경로 (None인 경우 임시 파일 생성)
+    
+    Returns:
+    - 음성 파일 경로
+    """
+    if not text:
+        return None
+    
+    # 출력 파일이 지정되지 않은 경우 임시 파일 생성
+    if output_file is None:
+        temp_dir = tempfile.gettempdir()
+        output_file = os.path.join(temp_dir, f"speech_{random.randint(1000, 9999)}.wav")
+    
+    # 텍스트를 음성으로 변환하고 파일로 저장
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(output_file)
+    
+    return output_file
+
+# 비동기 함수를 동기식으로 호출하는 래퍼 함수
+def sync_text_to_speech(text, voice="en-US-JennyNeural", output_file=None):
+    """
+    text_to_speech 함수를 동기식으로 호출하는 래퍼 함수
+    
+    Parameters:
+    - text: 음성으로 변환할 텍스트
+    - voice: 음성 모델 (기본값: 'en-US-JennyNeural')
+    - output_file: 출력 파일 경로 (None인 경우 임시 파일 생성)
+    
+    Returns:
+    - 음성 파일 경로
+    """
+    # 비동기 함수 실행을 위한 런타임 설정
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        audio_path = loop.run_until_complete(text_to_speech(text, voice, output_file))
+        return audio_path
+    finally:
+        loop.close()
+
+# 음성 파일을 HTML 오디오 요소로 변환하는 함수
+def get_audio_player_html(audio_path, loop_count=5, autoplay=True):
+    """
+    음성 파일을 재생할 수 있는 HTML 오디오 플레이어를 생성합니다.
+    
+    Parameters:
+    - audio_path: 음성 파일 경로
+    - loop_count: 반복 재생 횟수 (기본값: 5)
+    - autoplay: 자동 재생 여부 (기본값: True)
+    
+    Returns:
+    - HTML 코드 문자열
+    """
+    if not audio_path or not os.path.exists(audio_path):
+        return ""
+    
+    # 파일을 base64로 인코딩
+    with open(audio_path, "rb") as f:
+        audio_bytes = f.read()
+    
+    audio_b64 = base64.b64encode(audio_bytes).decode()
+    audio_html = f"""
+        <audio id="audio-player" controls {' loop' if loop_count > 1 else ''} {' autoplay' if autoplay else ''}>
+            <source src="data:audio/wav;base64,{audio_b64}" type="audio/wav">
+            Your browser does not support the audio element.
+        </audio>
+        <script>
+            var audioPlayer = document.getElementById('audio-player');
+            var playCount = 0;
+            var maxPlays = {loop_count};
+            
+            audioPlayer.addEventListener('ended', function() {{
+                playCount++;
+                if (playCount < maxPlays) {{
+                    audioPlayer.play();
+                }}
+            }});
+        </script>
+    """
+    return audio_html
+
 # NLTK 라이브러리 및 데이터 처리
 import nltk
 from nltk.corpus import stopwords
@@ -447,16 +537,16 @@ def rewrite_similar_level(text):
         words = custom_word_tokenize(sentence)
         new_words = []
     
-        for word in words:
-            word_lower = word.lower()
+    for word in words:
+        word_lower = word.lower()
             # 20% 확률로 동의어 교체 시도
-            if word_lower in synonyms and random.random() < 0.2:
+        if word_lower in synonyms and random.random() < 0.2:
                 replacement = random.choice(synonyms[word_lower])
-                # 대문자 보존
-                if word[0].isupper():
-                    replacement = replacement.capitalize()
+            # 대문자 보존
+        if word[0].isupper():
+                replacement = replacement.capitalize()
                 new_words.append(replacement)
-            else:
+        else:
                 new_words.append(word)
         
         rewritten.append(' '.join(new_words))
@@ -491,16 +581,16 @@ def rewrite_improved_level(text):
         words = custom_word_tokenize(sentence)
         new_words = []
     
-        for word in words:
-            word_lower = word.lower()
+    for word in words:
+        word_lower = word.lower()
             # 30% 확률로 중급 동의어 교체 시도
-            if word_lower in intermediate_synonyms and random.random() < 0.3:
+        if word_lower in intermediate_synonyms and random.random() < 0.3:
                 replacement = random.choice(intermediate_synonyms[word_lower])
-                # 대문자 보존
-                if word[0].isupper():
-                    replacement = replacement.capitalize()
+            # 대문자 보존
+        if word[0].isupper():
+                replacement = replacement.capitalize()
                 new_words.append(replacement)
-            else:
+        else:
                 new_words.append(word)
         
         improved = ' '.join(new_words)
@@ -653,7 +743,7 @@ def show_student_page():
     # 현재 선택된 탭을 보여줌
     with tabs[tab_index]:
         pass
-
+    
     # 영작문 검사 탭
     with tabs[0]:
         st.subheader("영작문 입력")
@@ -662,7 +752,7 @@ def show_student_page():
         input_col, listen_col = st.columns([3, 1])
         
         with input_col:
-            user_text = st.text_area("아래에 영어 작문을 입력하세요", height=200, key="text_tab1")
+          user_text = st.text_area("아래에 영어 작문을 입력하세요", height=200, key="text_tab1")
         
         with listen_col:
             # 음성 생성/재생 버튼
@@ -724,19 +814,19 @@ def show_student_page():
         # 모든 분석을 한 번에 실행하는 버튼
         with col1:
             if st.button("전체 분석하기", use_container_width=True, key="analyze_button"):
-                if not user_text:
-                    st.warning("텍스트를 입력해주세요.")
-                else:
+                    if not user_text:
+                        st.warning("텍스트를 입력해주세요.")
+                    else:
                     # 텍스트 통계 분석
-                    stats = analyze_text(user_text)
-                
-                    # 문법 오류 검사
+                        stats = analyze_text(user_text)
+                    
+                        # 문법 오류 검사
                     try:
                         grammar_errors = check_grammar(user_text)
                     except Exception as e:
                         st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
                         grammar_errors = []
-                    
+                        
                     # 어휘 분석
                     vocab_analysis = analyze_vocabulary(user_text)
                     
@@ -758,12 +848,12 @@ def show_student_page():
                         'vocab_level': vocab_level,
                         'original_text': user_text  # 원본 텍스트도 저장
                     }
-                    
-                    # 기록에 저장
+                            
+                            # 기록에 저장
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     st.session_state.history.append({
-                        'timestamp': timestamp,
-                        'text': user_text,
+                                'timestamp': timestamp,
+                                'text': user_text,
                         'error_count': len(grammar_errors) if grammar_errors else 0
                     })
                     
@@ -842,25 +932,25 @@ def show_student_page():
                 # 단어 빈도 시각화 - 에러 방지를 위한 예외 처리 추가
                 if vocab_analysis and 'word_freq' in vocab_analysis and vocab_analysis['word_freq']:
                     fig = plot_word_frequency(vocab_analysis['word_freq'])
-                    if fig:
+            if fig:
                         st.plotly_chart(fig, use_container_width=True)
-                else:
+            else:
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
-                
-                # 어휘 다양성 점수
-                st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
-                
-                # 어휘 수준 평가
-                if vocab_level:
-                    level_df = pd.DataFrame({
-                        '수준': ['기초', '중급', '고급'],
-                        '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
-                    })
-                    
-                    fig = px.pie(level_df, values='비율', names='수준', 
+                        
+                        # 어휘 다양성 점수
+            st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
+                        
+                        # 어휘 수준 평가
+            if vocab_level:
+                        level_df = pd.DataFrame({
+                            '수준': ['기초', '중급', '고급'],
+                            '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
+                        })
+                        
+                        fig = px.pie(level_df, values='비율', names='수준', 
                                 title='어휘 수준 분포')
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
+                        st.plotly_chart(fig, use_container_width=True)
+            else:
                     st.info("어휘 수준 평가를 위한 데이터가 충분하지 않습니다.")
         
         with result_tab3:
@@ -981,17 +1071,17 @@ def show_student_page():
                     
                     with col1:
                         # 텍스트 다운로드 버튼
-                        if rewritten:
+                       if rewritten:
                             text_output = io.BytesIO()
                             text_output.write(rewritten.encode('utf-8'))
                             text_output.seek(0)
-                            
+                        
                             st.download_button(
                                 label="텍스트 다운로드",
                                 data=text_output,
-                                file_name=f"rewritten_text_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                                mime="text/plain"
-                            )
+                            file_name=f"rewritten_text_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                            mime="text/plain"
+                        )
                     
                     with col2:
                         # 음성 파일 다운로드 버튼
@@ -1051,7 +1141,7 @@ def show_student_page():
                                 file_name=f"audio_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
                                 mime="audio/wav"
                             )
-            
+                    
                     # 원본과 재작성 텍스트 비교
                     if rewrite_text_input and rewritten:
                         st.subheader("원본 vs 재작성 비교")
@@ -1201,26 +1291,26 @@ def show_teacher_page():
                         
                 # 단어 빈도 시각화 - 에러 방지를 위한 예외 처리 추가
                 if vocab_analysis and 'word_freq' in vocab_analysis and vocab_analysis['word_freq']:
-                    fig = plot_word_frequency(vocab_analysis['word_freq'])
-                    if fig:
-                        st.plotly_chart(fig, use_container_width=True)
+                 fig = plot_word_frequency(vocab_analysis['word_freq'])
+                if fig:
+                            st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
-                
-                # 어휘 다양성 점수
+                        
+                        # 어휘 다양성 점수
                 st.metric("어휘 다양성 점수", f"{diversity_score:.2f}")
-                
-                # 어휘 수준 평가
+                        
+                        # 어휘 수준 평가
                 if vocab_level:
-                    level_df = pd.DataFrame({
-                        '수준': ['기초', '중급', '고급'],
-                        '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
-                    })
-                    
-                    fig = px.pie(level_df, values='비율', names='수준', 
-                                title='어휘 수준 분포')
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
+                 level_df = pd.DataFrame({
+                            '수준': ['기초', '중급', '고급'],
+                            '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
+                        })
+                        
+                fig = px.pie(level_df, values='비율', names='수준', 
+                                    title='어휘 수준 분포')
+                st.plotly_chart(fig, use_container_width=True)
+            else:
                     st.info("어휘 수준 평가를 위한 데이터가 충분하지 않습니다.")
         
         with result_tab3:
