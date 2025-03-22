@@ -643,91 +643,79 @@ def check_additional_patterns(text):
     """한국인 학습자가 자주 범하는 오류 패턴을 검사합니다."""
     errors = []
     
-    # 문장들로 분리
+    # 패턴 검사용 텍스트를 소문자로 변환
+    text_lower = text.lower()
+    
+    # 전체 텍스트에서 직접 패턴 검사
+    # 1. "impeachment the" 패턴 검사
+    pattern_impeachment = r'impeachment\s+the'
+    for match in re.finditer(pattern_impeachment, text_lower):
+        start = match.start()
+        end = match.end()
+        original_text = text[start:end]
+        
+        errors.append({
+            'message': "전치사 누락: 'impeachment the' → 'impeachment of the'",
+            'offset': start,
+            'length': len(original_text),
+            'replacements': ['impeachment of the'],
+            'rule': 'MISSING_PREPOSITION',
+            'context': text[max(0, start-20):min(len(text), end+20)]
+        })
+    
+    # 2. "has serious" 끝에 나오는 패턴 검사
+    pattern_incomplete = r'has\s+serious(?:\s*$|\s+(?:and|but|or))'
+    for match in re.finditer(pattern_incomplete, text_lower):
+        start = match.start()
+        end = match.end()
+        original_text = text[start:end]
+        
+        errors.append({
+            'message': "불완전 문장: 명사가 필요합니다. 'has serious' → 'has serious consequences'",
+            'offset': start,
+            'length': len(original_text),
+            'replacements': ['has serious consequences', 'has serious implications', 'has serious effects'],
+            'rule': 'INCOMPLETE_SENTENCE',
+            'context': text[max(0, start-20):min(len(text), end+20)]
+        })
+    
+    # 3. "related the" 패턴 검사
+    pattern_related = r'related\s+the'
+    for match in re.finditer(pattern_related, text_lower):
+        start = match.start()
+        end = match.end()
+        original_text = text[start:end]
+        
+        errors.append({
+            'message': "전치사 누락: 'related the' → 'related to the'",
+            'offset': start,
+            'length': len(original_text),
+            'replacements': ['related to the'],
+            'rule': 'MISSING_PREPOSITION',
+            'context': text[max(0, start-20):min(len(text), end+20)]
+        })
+    
+    # 문장별 검사도 유지 (기존 코드)
     sentences = custom_sent_tokenize(text)
     current_pos = 0
     
     for sentence in sentences:
-        # 전치사 누락 패턴: "impeachment the" -> "impeachment of the"
-        pattern_impeachment = r'impeachment\s+the'
-        matches = re.finditer(pattern_impeachment, sentence, re.IGNORECASE)
-        for match in matches:
-            start_in_sentence = match.start()
-            length = match.end() - match.start()
-            start_in_text = text.find(sentence, current_pos) + start_in_sentence
-            
-            if start_in_text >= 0:
-                errors.append({
-                    'message': "전치사 누락: 'impeachment the' → 'impeachment of the'",
-                    'offset': start_in_text,
-                    'length': length,
-                    'replacements': ['impeachment of the'],
-                    'rule': 'MISSING_PREPOSITION',
-                    'context': sentence
-                })
-        
-        # 불완전 문장 패턴: "has serious" 다음에 명사가 없는 경우
-        pattern_incomplete = r'has\s+serious\s*$'
-        matches = re.finditer(pattern_incomplete, sentence, re.IGNORECASE)
-        for match in matches:
-            start_in_sentence = match.start()
-            length = match.end() - match.start()
-            start_in_text = text.find(sentence, current_pos) + start_in_sentence
-            
-            if start_in_text >= 0:
-                errors.append({
-                    'message': "불완전 문장: 명사가 필요합니다. 'has serious' → 'has serious consequences'",
-                    'offset': start_in_text,
-                    'length': length,
-                    'replacements': ['has serious consequences', 'has serious implications', 'has serious effects'],
-                    'rule': 'INCOMPLETE_SENTENCE',
-                    'context': sentence
-                })
-        
-        # 기타 전치사 누락 패턴들
-        # "related to" 다음에 "the"가 오는 경우 체크
-        pattern_related = r'related\s+the'
-        matches = re.finditer(pattern_related, sentence, re.IGNORECASE)
-        for match in matches:
-            start_in_sentence = match.start()
-            length = match.end() - match.start()
-            start_in_text = text.find(sentence, current_pos) + start_in_sentence
-            
-            if start_in_text >= 0:
-                errors.append({
-                    'message': "전치사 누락: 'related the' → 'related to the'",
-                    'offset': start_in_text,
-                    'length': length,
-                    'replacements': ['related to the'],
-                    'rule': 'MISSING_PREPOSITION',
-                    'context': sentence
-                })
-                
-        # 대응하는 to-be 동사가 없는 경우
-        pattern_missing_verb = r'(the\s+\w+(?:\s+\w+){0,3})\s+(?:very|so|quite|extremely)\s+(\w+)(?:\s+(?:and|but|or)\s+(?:very|so|quite|extremely)\s+(\w+))?(?:\s*[,.]|\s+(?:that|which|who)|\s*$)'
-        matches = re.finditer(pattern_missing_verb, sentence, re.IGNORECASE)
-        for match in matches:
-            start_in_sentence = match.start()
-            length = match.end() - match.start()
-            start_in_text = text.find(sentence, current_pos) + start_in_sentence
-            
-            subject = match.group(1)
-            adjective = match.group(2)
-            
-            if start_in_text >= 0:
-                errors.append({
-                    'message': f"동사 누락: '{subject} {adjective}' → '{subject} is {adjective}'",
-                    'offset': start_in_text,
-                    'length': length,
-                    'replacements': [f"{subject} is {adjective}"],
-                    'rule': 'MISSING_VERB',
-                    'context': sentence
-                })
+        # ... existing code for sentence-level patterns ...
         
         # 현재 위치 업데이트
         current_pos += len(sentence)
     
-    return errors
+    # 중복 제거
+    unique_errors = []
+    error_positions = set()
+    
+    for error in errors:
+        position = (error['offset'], error['length'])
+        if position not in error_positions:
+            error_positions.add(position)
+            unique_errors.append(error)
+    
+    return unique_errors
 
 # 문법 오류 시각화 및 표시를 위한 함수
 def display_grammar_errors(text, errors):
@@ -1933,9 +1921,32 @@ def show_teacher_page():
 def main():
     # 제목 및 소개
     # st.title("영작문 자동 첨삭 시스템")
-    st.markdown("""
-    이 애플리케이션은 학생들의 영작문을 자동으로 첨삭하고 피드백을 제공합니다.
-    """)
+    st.set_page_config(
+        page_title="영작문 자동 첨삭 시스템",
+        page_icon="📝",
+        layout="wide"
+    )
+    
+    # 개발 모드 설정 (관리자용)
+    if 'dev_mode' not in st.session_state:
+        st.session_state.dev_mode = False
+    
+    # 설정 섹션 (사이드바)
+    with st.sidebar:
+        st.title("영작문 자동 첨삭 시스템")
+        st.markdown("---")
+        
+        # 화면 선택
+        page = st.radio("모드 선택", ["학생용", "선생님용"])
+        
+        # 관리자 옵션 (숨겨진 설정)
+        with st.expander("고급 설정", expanded=False):
+            st.session_state.dev_mode = st.checkbox("개발 모드", value=st.session_state.dev_mode, 
+                                                 help="개발 중에만 사용. 자동 새로고침 및 디버깅 정보 제공")
+    
+    # 5분마다 자동으로 앱 새로고침 (개발 중에만 사용)
+    if st.session_state.get('dev_mode', False):
+        st_autorefresh(interval=5 * 60 * 1000, key="dev_refresh")
     
     # 직접 학생 페이지로 이동
     show_student_page()
