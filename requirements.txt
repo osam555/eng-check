@@ -11,3 +11,4 @@ transformers
 pyenchant
 pyspellchecker
 edge-tts
+language-tool-python

@@ -26,6 +26,14 @@ import tempfile
 import os
 import base64
 
+# LanguageTool API 임포트 시도
+try:
+    import language_tool_python
+    has_languagetool = True
+except ImportError:
+    has_languagetool = False
+    print("language-tool-python이 설치되어 있지 않습니다. 기본 문법 검사 기능을 사용합니다.")
+
 # 텍스트를 음성으로 변환하는 함수
 async def text_to_speech(text, voice="en-US-JennyNeural", output_file=None):
     """
@@ -200,16 +208,46 @@ if 'history' not in st.session_state:
 if 'selected_tab' not in st.session_state:
     st.session_state.selected_tab = 0  # 기본 탭은 0(영작문 검사)
 
-# 맞춤법 사전 초기화
-@st.cache_resource
+# 맞춤법 검사기 초기화 함수
 def get_spell_checker():
-    if has_spellchecker:
-        return spell
-    elif has_enchant:
+    """
+    사용 가능한 맞춤법 검사기를 로드합니다.
+    여러 라이브러리를 시도하고 사용 가능한 첫 번째 검사기를 반환합니다.
+    """
+    # PyEnchant 사용 시도
+    if 'has_enchant' in globals() and has_enchant:
         try:
             return enchant.Dict("en_US")
-        except:
-            return None
+        except Exception as e:
+            print(f"PyEnchant 초기화 오류: {e}")
+    
+    # PySpellChecker 사용 시도
+    if 'has_spellchecker' in globals() and has_spellchecker:
+        try:
+            return SpellChecker()
+        except Exception as e:
+            print(f"PySpellChecker 초기화 오류: {e}")
+    
+    # 둘 다 실패한 경우 None 반환
+    return None
+
+# LanguageTool 검사기 초기화 함수
+def get_language_tool():
+    """
+    LanguageTool 검사기를 초기화하고 반환합니다.
+    """
+    if has_languagetool:
+        try:
+            # 로컬 서버가 실행 중인 경우 연결 (빠른 속도)
+            return language_tool_python.LanguageTool('en-US')
+        except Exception as e:
+            print(f"LanguageTool 초기화 오류: {e}")
+            try:
+                # 원격 API 사용 (백업)
+                return language_tool_python.LanguageToolPublicAPI('en-US')
+            except Exception as e:
+                print(f"LanguageTool 원격 API 초기화 오류: {e}")
+    
     return None
 
 # 자주 틀리는 단어에 대한 사용자 정의 제안 사전
@@ -254,7 +292,7 @@ def get_custom_suggestions():
         'arent': ["aren't"]
     }
 
-# 문법 검사 함수 (TextBlob 사용)
+# 문법 검사 함수 (LanguageTool과 TextBlob 통합)
 def check_grammar(text):
     if not text.strip():
         return []
@@ -262,6 +300,42 @@ def check_grammar(text):
     errors = []
     
     try:
+        # LanguageTool을 사용한 문법 검사 (사용 가능한 경우)
+        if has_languagetool:
+            try:
+                tool = get_language_tool()
+                if tool:
+                    # LanguageTool을 사용한 고급 문법 및 맞춤법 검사
+                    lt_matches = tool.check(text)
+                    
+                    for match in lt_matches:
+                        # 매치된 위치와 길이 계산
+                        offset = match.offset
+                        error_length = match.errorLength
+                        message = match.message
+                        
+                        # 제안된 수정 사항이 있으면 추가
+                        replacements = match.replacements if match.replacements else []
+                        
+                        errors.append({
+                            "offset": offset,
+                            "errorLength": error_length,
+                            "message": message,
+                            "replacements": replacements,
+                            "source": "LanguageTool"  # 오류 소스 표시
+                        })
+                    
+                    # LanguageTool 세션 닫기
+                    tool.close()
+                    
+                    # LanguageTool이 성공적으로 실행된 경우 반환
+                    if errors:
+                        return errors
+            except Exception as e:
+                print(f"LanguageTool 오류: {e}")
+                # LanguageTool 사용 실패 시 기존 방식으로 폴백
+        
+        # 기존 맞춤법 검사 로직 (LanguageTool이 없거나 실패한 경우)
         blob = TextBlob(text)
         
         # 문장 단위로 분석
@@ -302,7 +376,8 @@ def check_grammar(text):
                                     "offset": word_offset,
                                     "errorLength": len(word),
                                     "message": f"맞춤법 오류: '{word}'",
-                                    "replacements": suggestions
+                                    "replacements": suggestions,
+                                    "source": "PyEnchant"  # 오류 소스 표시
                                 })
                         # PySpellChecker 사용 (enchant 대신)
                         elif checker and 'has_spellchecker' in globals() and has_spellchecker and word.lower() not in checker:
@@ -321,7 +396,8 @@ def check_grammar(text):
                                     "offset": word_offset,
                                     "errorLength": len(word),
                                     "message": f"맞춤법 오류: '{word}'",
-                                    "replacements": suggestions
+                                    "replacements": suggestions,
+                                    "source": "PySpellChecker"  # 오류 소스 표시
                                 })
                         # TextBlob을 사용한 맞춤법 검사 대안 (다른 라이브러리가 없는 경우)
                         elif not checker:
@@ -336,7 +412,8 @@ def check_grammar(text):
                                             "offset": word_offset,
                                             "errorLength": len(word),
                                             "message": f"맞춤법 오류: '{word}'",
-                                            "replacements": custom_suggestions[word_lower]
+                                            "replacements": custom_suggestions[word_lower],
+                                            "source": "CustomDictionary"  # 오류 소스 표시
                                         })
                                 else:
                                     # TextBlob을 사용한 기존 로직
@@ -349,7 +426,8 @@ def check_grammar(text):
                                                 "offset": word_offset,
                                                 "errorLength": len(word),
                                                 "message": f"맞춤법 오류: '{word}'",
-                                                "replacements": [corrected]
+                                                "replacements": [corrected],
+                                                "source": "TextBlob"  # 오류 소스 표시
                                             })
                             except Exception as e:
                                 # TextBlob 맞춤법 검사 오류 무시
@@ -364,6 +442,34 @@ def check_grammar(text):
         st.error(f"텍스트 분석 중 오류가 발생했습니다: {e}")
     
     return errors
+
+# 문법 오류 시각화 및 표시를 위한 함수
+def display_grammar_errors(text, errors):
+    """
+    텍스트와 문법 오류 목록을 받아 시각적으로 표시합니다.
+    """
+    if not errors:
+        return st.success("문법 오류가 없습니다!")
+    
+    st.subheader("문법 오류 목록")
+    
+    error_data = []
+    for error in errors:
+        error_text = text[error['offset']:error['offset'] + error['errorLength']]
+        source = error.get('source', '기본 검사기')
+        
+        error_data.append({
+            "오류": error_text,
+            "오류 내용": error['message'],
+            "수정 제안": ", ".join(error['replacements'][:3]),
+            "검출 도구": source
+        })
+    
+    # 테이블로 오류 표시
+    st.dataframe(pd.DataFrame(error_data))
+    
+    # 오류 통계
+    st.write(f"총 {len(errors)}개의 문법/맞춤법 오류가 발견되었습니다.")
 
 # 텍스트 통계 분석 함수
 def analyze_text(text):
@@ -895,21 +1001,10 @@ def show_student_page():
         with result_tab1:
             if 'analysis_results' in st.session_state and 'grammar_errors' in st.session_state.analysis_results:
                 grammar_errors = st.session_state.analysis_results['grammar_errors']
+                original_text = st.session_state.analysis_results['original_text']
                 
-                if grammar_errors:
-                    st.subheader("문법 오류 목록")
-                    
-                    error_data = []
-                    for error in grammar_errors:
-                        error_data.append({
-                            "오류": user_text[error['offset']:error['offset'] + error['errorLength']],
-                            "오류 내용": error['message'],
-                            "수정 제안": error['replacements']
-                        })
-                    
-                    st.dataframe(pd.DataFrame(error_data))
-                else:
-                    st.success("문법 오류가 없습니다!")
+                # 새로운 함수를 사용하여 문법 오류 표시
+                display_grammar_errors(original_text, grammar_errors)
                 
                 # 음성 다운로드 버튼 표시 (기존 버튼 위치에는 다운로드만 유지)
                 audio_key = f"audio_tab1_{hash(st.session_state.analysis_results['original_text'])}" if 'original_text' in st.session_state.analysis_results else None
@@ -1271,22 +1366,34 @@ def show_teacher_page():
         with result_tab1:
             if 'teacher_analysis_results' in st.session_state and 'grammar_errors' in st.session_state.teacher_analysis_results:
                 grammar_errors = st.session_state.teacher_analysis_results['grammar_errors']
+                original_text = st.session_state.teacher_analysis_results['original_text']
+                
+                # 새로운 함수를 사용하여 문법 오류 표시
+                display_grammar_errors(original_text, grammar_errors)
+                
+                # 오류 수를 기준으로 피드백 생성
+                if len(grammar_errors) > 0:
+                    with st.expander("피드백 제안"):
+                        error_count = len(grammar_errors)
                         
-                if grammar_errors:
-                            st.subheader("문법 오류 목록")
+                        if error_count > 10:
+                            feedback = "문법 오류가 다수 발견되었습니다. 기본적인 문법 규칙을 다시 복습하는 것이 좋겠습니다."
+                        elif error_count > 5:
+                            feedback = "몇 가지 문법 오류가 있습니다. 특히 반복되는 오류 패턴을 중점적으로 학습해보세요."
+                        else:
+                            feedback = "약간의 문법 오류만 있습니다. 전반적으로 좋은 영작입니다."
+                        
+                        st.write(feedback)
+                        
+                        # 첨삭 템플릿에 피드백 추가 버튼
+                        if st.button("이 피드백을 첨삭 노트에 추가", key="add_grammar_feedback"):
+                            if 'feedback_template' not in st.session_state:
+                                st.session_state.feedback_template = f"문법 피드백: {feedback}"
+                            else:
+                                st.session_state.feedback_template += f"\n\n문법 피드백: {feedback}"
                             
-                            error_data = []
-                            for error in grammar_errors:
-                                error_data.append({
-                            "오류": user_text[error['offset']:error['offset'] + error['errorLength']],
-                            "오류 내용": error['message'],
-                            "수정 제안": error['replacements']
-                                })
-                            
-                            st.dataframe(pd.DataFrame(error_data))
-                else:
-                            st.success("문법 오류가 없습니다!")
-            
+                            st.success("피드백이 첨삭 노트에 추가되었습니다.")
+                        
         with result_tab2:
             if 'teacher_analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.teacher_analysis_results:
                 vocab_analysis = st.session_state.teacher_analysis_results['vocab_analysis']
