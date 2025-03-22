@@ -341,61 +341,19 @@ def plot_word_frequency(word_freq):
     
     return fig
 
-# 어휘 수준 평가 (간단한 버전)
+# 학생 페이지
 def evaluate_vocabulary_level(text):
-    # 확장된 기본 단어 목록
-    basic_words = {'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 
-                  'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but',
-                  'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will', 'my', 'one',
-                  'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if', 'about',
-                  'who', 'get', 'which', 'go', 'me', 'when', 'make', 'can', 'like', 'time',
-                  'no', 'just', 'him', 'know', 'take', 'people', 'into', 'year', 'your', 'good'}
-    intermediate_words = {'achieve', 'consider', 'determine', 'establish', 'indicate', 'occur',
-                        'participate', 'predict', 'provide', 'recognize', 'resolve', 'specific', 
-                        'therefore', 'utilize', 'aspect', 'concept', 'context', 'diverse'}
-    advanced_words = {'arbitrary', 'cognitive', 'encompass', 'facilitate', 'fundamental', 'implicit',
-                     'intricate', 'legitimate', 'paradigm', 'phenomenon', 'pragmatic', 'scrutinize',
-                     'sophisticated', 'subsequent', 'synthesis', 'theoretical', 'underlying'}
+    # 온라인 데이터셋에서 어휘 로드
+    vocabulary_sets = load_vocabulary_datasets()
     
     words = custom_word_tokenize(text.lower())
     words = [word for word in words if re.match(r'\w+', word)]
     
     word_set = set(words)
     
-    basic_count = len(word_set.intersection(basic_words))
-    intermediate_count = len(word_set.intersection(intermediate_words))
-    advanced_count = len(word_set.intersection(advanced_words))
-    
-    total = basic_count + intermediate_count + advanced_count
-    if total == 0:
-        return {'basic': 0, 'intermediate': 0, 'advanced': 0}
-    
-    return {
-        'basic': basic_count / max(1, total),
-        'intermediate': intermediate_count / max(1, total),
-        'advanced': advanced_count / max(1, total)
-    }
-
-# 어휘 수준 평가 (간단한 버전)
-def evaluate_vocabulary_level_simple(text):
-    # 영어 단어 수준을 나타내는 샘플 데이터 (실제로는 더 큰 데이터셋 필요)
-    basic_words = {'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 
-                  'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but'}
-    intermediate_words = {'achieve', 'consider', 'determine', 'establish', 'indicate', 'occur',
-                        'participate', 'predict', 'provide', 'recognize', 'resolve', 'specific', 
-                        'therefore', 'utilize', 'aspect', 'concept', 'context', 'diverse'}
-    advanced_words = {'arbitrary', 'cognitive', 'encompass', 'facilitate', 'fundamental', 'implicit',
-                     'intricate', 'legitimate', 'paradigm', 'phenomenon', 'pragmatic', 'scrutinize',
-                     'sophisticated', 'subsequent', 'synthesis', 'theoretical', 'underlying'}
-    
-    words = custom_word_tokenize(text.lower())
-    words = [word for word in words if re.match(r'\w+', word)]
-    
-    word_set = set(words)
-    
-    basic_count = len(word_set.intersection(basic_words))
-    intermediate_count = len(word_set.intersection(intermediate_words))
-    advanced_count = len(word_set.intersection(advanced_words))
+    basic_count = len(word_set.intersection(vocabulary_sets['basic']))
+    intermediate_count = len(word_set.intersection(vocabulary_sets['intermediate']))
+    advanced_count = len(word_set.intersection(vocabulary_sets['advanced']))
     
     total = basic_count + intermediate_count + advanced_count
     if total == 0:
@@ -408,15 +366,6 @@ def evaluate_vocabulary_level_simple(text):
     }
 
 # 학생 페이지
-def show_student_page():
-    st.title("영작문 자동 첨삭 시스템 - 학생")
-    
-    # 로그아웃 버튼
-    if st.button("로그아웃", key="student_logout"):
-        st.session_state.user_type = None
-        st.rerun()
-    
-    # 탭 생성
     tabs = st.tabs(["영작문 검사", "영작문 재작성", "내 작문 기록"])
     
     # 영작문 검사 탭
