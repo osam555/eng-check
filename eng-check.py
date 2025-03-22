@@ -1,4 +1,6 @@
 import streamlit as st
+import spacy
+import transformers
 
 # 페이지 설정 (가장 먼저 호출해야 함)
 st.set_page_config(
@@ -15,6 +17,7 @@ import plotly.express as px
 from collections import Counter
 import re
 import io
+import random
 from datetime import datetime
 from textblob import TextBlob
 
@@ -45,6 +48,15 @@ except ImportError:
     has_enchant = False
     st.info("맞춤법 검사 라이브러리(enchant)가 설치되지 않았습니다. TextBlob을 사용한 기본 맞춤법 검사만 제공됩니다.")
 
+# 정규식 패턴 컴파일 캐싱
+@st.cache_resource
+def get_compiled_patterns():
+    return {
+        'sentence_split': re.compile(r'(?<=[.!?])\s+'),
+        'word_tokenize': re.compile(r'\b[\w\'-]+\b'),
+        'punctuation': re.compile(r'[.,!?;:"]')
+    }
+
 # 수정된 sent_tokenize 함수 (NLTK 의존성 제거)
 def custom_sent_tokenize(text):
     if not text:
@@ -52,7 +64,8 @@ def custom_sent_tokenize(text):
     
     # 정규식 기반 문장 분할기
     # 온점, 느낌표, 물음표 뒤에 공백이 오는 패턴을 기준으로 분할
-    sentences = re.split(r'(?<=[.!?])\s+', text)
+    patterns = get_compiled_patterns()
+    sentences = patterns['sentence_split'].split(text)
     # 빈 문장 제거
     return [s.strip() for s in sentences if s.strip()]
 
@@ -63,12 +76,12 @@ def custom_word_tokenize(text):
     
     # 효과적인 정규식 패턴으로 단어 토큰화
     # 축약형(I'm, don't 등), 소유격(John's), 하이픈 단어(well-known) 등을 처리
-    tokens = []
-    # 기본 단어(알파벳 + 숫자 + 아포스트로피 + 하이픈)
-    words = re.findall(r'\b[\w\'-]+\b', text)
+    patterns = get_compiled_patterns()
+    words = patterns['word_tokenize'].findall(text)
     # 구두점
-    punctuation = re.findall(r'[.,!?;:"]', text)
+    punctuation = patterns['punctuation'].findall(text)
     
+    tokens = []
     tokens.extend(words)
     tokens.extend(punctuation)
     
@@ -299,310 +312,13 @@ def plot_word_frequency(word_freq):
 
 # 어휘 수준 평가 (간단한 버전)
 def evaluate_vocabulary_level(text):
-    # 영어 단어 수준을 나타내는 샘플 데이터 (실제로는 더 큰 데이터셋 필요)
+    # 확장된 기본 단어 목록
     basic_words = {'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 
-                  'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but'}
-    intermediate_words = {'achieve', 'consider', 'determine', 'establish', 'indicate', 'occur',
-                        'participate', 'predict', 'provide', 'recognize', 'resolve', 'specific', 
-                        'therefore', 'utilize', 'aspect', 'concept', 'context', 'diverse'}
-    advanced_words = {'arbitrary', 'cognitive', 'encompass', 'facilitate', 'fundamental', 'implicit',
-                     'intricate', 'legitimate', 'paradigm', 'phenomenon', 'pragmatic', 'scrutinize',
-                     'sophisticated', 'subsequent', 'synthesis', 'theoretical', 'underlying'}
-    
-    words = custom_word_tokenize(text.lower())
-    words = [word for word in words if re.match(r'\w+', word)]
-    
-    word_set = set(words)
-    
-    basic_count = len(word_set.intersection(basic_words))
-    intermediate_count = len(word_set.intersection(intermediate_words))
-    advanced_count = len(word_set.intersection(advanced_words))
-    
-    total = basic_count + intermediate_count + advanced_count
-    if total == 0:
-        return {'basic': 0, 'intermediate': 0, 'advanced': 0}
-    
-    return {
-        'basic': basic_count / max(1, total),
-        'intermediate': intermediate_count / max(1, total),
-        'advanced': advanced_count / max(1, total)
-    }
-
-# 어휘 수준 평가 (간단한 버전)
-def evaluate_vocabulary_level_simple(text):
-    # 영어 단어 수준을 나타내는 샘플 데이터 (실제로는 더 큰 데이터셋 필요)
-    basic_words = {'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 
-                  'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but'}
-    intermediate_words = {'achieve', 'consider', 'determine', 'establish', 'indicate', 'occur',
-                        'participate', 'predict', 'provide', 'recognize', 'resolve', 'specific', 
-                        'therefore', 'utilize', 'aspect', 'concept', 'context', 'diverse'}
-    advanced_words = {'arbitrary', 'cognitive', 'encompass', 'facilitate', 'fundamental', 'implicit',
-                     'intricate', 'legitimate', 'paradigm', 'phenomenon', 'pragmatic', 'scrutinize',
-                     'sophisticated', 'subsequent', 'synthesis', 'theoretical', 'underlying'}
-    
-    words = custom_word_tokenize(text.lower())
-    words = [word for word in words if re.match(r'\w+', word)]
-    
-    word_set = set(words)
-    
-    basic_count = len(word_set.intersection(basic_words))
-    intermediate_count = len(word_set.intersection(intermediate_words))
-    advanced_count = len(word_set.intersection(advanced_words))
-    
-    total = basic_count + intermediate_count + advanced_count
-    if total == 0:
-        return {'basic': 0, 'intermediate': 0, 'advanced': 0}
-    
-    return {
-        'basic': basic_count / max(1, total),
-        'intermediate': intermediate_count / max(1, total),
-        'advanced': advanced_count / max(1, total)
-    }
-
-# 영작문 재작성 기능 (다양한 수준으로 변환)
-def rewrite_text(text, level='similar'):
-    """
-    학생이 작성한 영어 텍스트를 지정된 수준으로 재작성합니다.
-    
-    Parameters:
-    - text: 원본 텍스트
-    - level: 'similar' (비슷한 수준), 'improved' (약간 더 높은 수준), 'advanced' (고급 수준)
-    
-    Returns:
-    - 재작성된 텍스트
-    """
-    if not text.strip():
-        return ""
-    
-    try:
-        # 문장 단위로 분석 및 재작성
-        sentences = custom_sent_tokenize(text)
-        rewritten_sentences = []
-        
-        for sentence in sentences:
-            # 원본 문장 구존 보존
-            if level == 'similar':
-                rewritten = rewrite_similar_level(sentence)
-            # 약간 더 높은 수준으로 개선
-            elif level == 'improved':
-                rewritten = rewrite_improved_level(sentence)
-            # 고급 수준으로 변환
-            elif level == 'advanced':
-                rewritten = rewrite_advanced_level(sentence)
-            else:
-                rewritten = sentence
-            
-            rewritten_sentences.append(rewritten)
-        
-        return ' '.join(rewritten_sentences)
-    except Exception as e:
-        st.error(f"텍스트 재작성 중 오류가 발생했습니다: {e}")
-        return text
-
-# 비슷한 수준으로 재작성 (기본 단어 대체)
-def rewrite_similar_level(sentence):
-    common_synonyms = {
-        'good': ['nice', 'fine', 'decent'],
-        'bad': ['poor', 'unpleasant', 'negative'],
-        'big': ['large', 'sizable', 'substantial'],
-        'small': ['little', 'tiny', 'modest'],
-        'happy': ['glad', 'pleased', 'cheerful'],
-        'sad': ['unhappy', 'upset', 'down'],
-        'important': ['significant', 'key', 'crucial'],
-        'difficult': ['hard', 'tough', 'challenging'],
-        'easy': ['simple', 'straightforward', 'effortless'],
-        'beautiful': ['pretty', 'lovely', 'attractive'],
-        'interesting': ['engaging', 'intriguing', 'appealing'],
-        'boring': ['dull', 'tedious', 'monotonous'],
-        'quickly': ['rapidly', 'fast', 'swiftly'],
-        'slowly': ['gradually', 'steadily', 'unhurriedly'],
-    }
-    
-    words = custom_word_tokenize(sentence)
-    result = []
-    
-    import random
-    random.seed(sum(ord(c) for c in sentence))  # 같은 문장은 같은 결과 생성
-    
-    for word in words:
-        word_lower = word.lower()
-        if word_lower in common_synonyms and random.random() < 0.4:  # 40% 확률로 대체
-            synonyms = common_synonyms[word_lower]
-            replacement = random.choice(synonyms)
-            
-            # 대문자 보존
-            if word[0].isupper():
-                replacement = replacement.capitalize()
-            
-            result.append(replacement)
-        else:
-            result.append(word)
-    
-    return ' '.join(result)
-
-# 약간 더 높은 수준으로 재작성
-def rewrite_improved_level(sentence):
-    # 기본 단어를 약간 더 고급 단어로 대체
-    improved_synonyms = {
-        'good': ['favorable', 'commendable', 'satisfactory'],
-        'bad': ['unfavorable', 'substandard', 'inadequate'],
-        'big': ['considerable', 'extensive', 'significant'],
-        'small': ['diminutive', 'compact', 'slight'],
-        'happy': ['delighted', 'content', 'joyful'],
-        'sad': ['melancholy', 'gloomy', 'disheartened'],
-        'important': ['essential', 'vital', 'fundamental'],
-        'difficult': ['demanding', 'arduous', 'strenuous'],
-        'easy': ['uncomplicated', 'manageable', 'painless'],
-        'beautiful': ['exquisite', 'gorgeous', 'stunning'],
-        'interesting': ['captivating', 'compelling', 'fascinating'],
-        'boring': ['unstimulating', 'bland', 'uninteresting'],
-        'quickly': ['promptly', 'expeditiously', 'hastily'],
-        'slowly': ['leisurely', 'deliberately', 'methodically'],
-        'very': ['extremely', 'notably', 'particularly'],
-        'a lot': ['considerably', 'substantially', 'extensively'],
-        'think': ['believe', 'consider', 'contemplate'],
-        'like': ['appreciate', 'enjoy', 'admire'],
-        'use': ['utilize', 'employ', 'apply'],
-        'make': ['create', 'produce', 'develop'],
-        'get': ['obtain', 'acquire', 'receive'],
-        'tell': ['inform', 'explain', 'communicate'],
-        'say': ['state', 'mention', 'express'],
-    }
-    
-    # 특정 문구 패턴 개선
-    improved_phrases = {
-        r'\bi think\b': ['In my opinion', 'I believe', 'From my perspective'],
-        r'\bi like\b': ['I appreciate', 'I enjoy', 'I am fond of'],
-        r'\bi want\b': ['I would like', 'I desire', 'I wish'],
-        r'\blots of\b': ['numerous', 'various', 'a variety of'],
-        r'\bmany of\b': ['a significant number of', 'a considerable amount of', 'multiple'],
-    }
-    
-    # 우선 단어 수준 개선
-    words = custom_word_tokenize(sentence)
-    result = []
-    
-    import random
-    random.seed(sum(ord(c) for c in sentence))  # 같은 문장은 같은 결과 생성
-    
-    for word in words:
-        word_lower = word.lower()
-        if word_lower in improved_synonyms and random.random() < 0.6:  # 60% 확률로 대체
-            synonyms = improved_synonyms[word_lower]
-            replacement = random.choice(synonyms)
-            
-            # 대문자 보존
-            if word[0].isupper():
-                replacement = replacement.capitalize()
-            
-            result.append(replacement)
-        else:
-            result.append(word)
-    
-    improved_text = ' '.join(result)
-    
-    # 문구 패턴 개선
-    for pattern, replacements in improved_phrases.items():
-        if re.search(pattern, improved_text, re.IGNORECASE):
-            replacement = random.choice(replacements)
-            improved_text = re.sub(pattern, replacement, improved_text, flags=re.IGNORECASE)
-    
-    return improved_text
-
-# 고급 수준으로 재작성
-def rewrite_advanced_level(sentence):
-    # 고급 어휘로 대체
-    advanced_synonyms = {
-        'good': ['exemplary', 'exceptional', 'impeccable'],
-        'bad': ['detrimental', 'deplorable', 'egregious'],
-        'big': ['immense', 'formidable', 'monumental'],
-        'small': ['minuscule', 'negligible', 'infinitesimal'],
-        'happy': ['euphoric', 'exuberant', 'ecstatic'],
-        'sad': ['despondent', 'crestfallen', 'dejected'],
-        'important': ['imperative', 'indispensable', 'paramount'],
-        'difficult': ['formidable', 'insurmountable', 'Herculean'],
-        'easy': ['effortless', 'rudimentary', 'facile'],
-        'beautiful': ['resplendent', 'breathtaking', 'sublime'],
-        'interesting': ['riveting', 'enthralling', 'spellbinding'],
-        'boring': ['soporific', 'tedious', 'vapid'],
-        'quickly': ['expeditiously', 'precipitously', 'instantaneously'],
-        'slowly': ['incrementally', 'imperceptibly', 'languorously'],
-        'very': ['exceedingly', 'remarkably', 'profoundly'],
-        'a lot': ['copiously', 'abundantly', 'prolifically'],
-        'think': ['postulate', 'theorize', 'presume'],
-        'like': ['venerate', 'treasure', 'revere'],
-        'use': ['leverage', 'harness', 'implement'],
-        'make': ['fabricate', 'synthesize', 'construct'],
-        'get': ['procure', 'ascertain', 'secure'],
-        'tell': ['articulate', 'elucidate', 'explicate'],
-        'say': ['proclaim', 'assert', 'pronounce'],
-    }
-    
-    # 고급 문구 패턴
-    advanced_phrases = {
-        r'\bi think\b': ['I postulate that', 'I am of the conviction that', 'It is my considered opinion that'],
-        r'\bi like\b': ['I am particularly enamored with', 'I hold in high regard', 'I find great merit in'],
-        r'\bi want\b': ['I aspire to', 'I am inclined towards', 'My inclination is toward'],
-        r'\blots of\b': ['a plethora of', 'an abundance of', 'a multitude of'],
-        r'\bmany of\b': ['a preponderance of', 'a substantial proportion of', 'a significant contingent of'],
-        r'\bbecause\b': ['owing to the fact that', 'as a consequence of', 'in view of the circumstance that'],
-        r'\bso\b': ['consequently', 'thus', 'hence'],
-        r'\bbut\b': ['nevertheless', 'notwithstanding', 'conversely'],
-        r'\balso\b': ['furthermore', 'moreover', 'additionally'],
-    }
-    
-    # 문장 구조 개선 패턴
-    structure_improvements = {
-        r'^I am ': ['Being ', 'As someone who is '],
-        r'^I have ': ['Having ', 'Possessing '],
-        r'^This is ': ['This constitutes ', 'This represents '],
-        r'^There are ': ['There exist ', 'One can observe '],
-        r'^It is ': ['It remains ', 'It stands as '],
-    }
-    
-    # 우선 단어 수준 개선
-    words = custom_word_tokenize(sentence)
-    result = []
-    
-    import random
-    random.seed(sum(ord(c) for c in sentence))  # 같은 문장은 같은 결과 생성
-    
-    for word in words:
-        word_lower = word.lower()
-        if word_lower in advanced_synonyms and random.random() < 0.8:  # 80% 확률로 대체
-            synonyms = advanced_synonyms[word_lower]
-            replacement = random.choice(synonyms)
-            
-            # 대문자 보존
-            if word[0].isupper():
-                replacement = replacement.capitalize()
-            
-            result.append(replacement)
-        else:
-            result.append(word)
-    
-    advanced_text = ' '.join(result)
-    
-    # 문구 패턴 개선
-    for pattern, replacements in advanced_phrases.items():
-        if re.search(pattern, advanced_text, re.IGNORECASE):
-            replacement = random.choice(replacements)
-            advanced_text = re.sub(pattern, replacement, advanced_text, flags=re.IGNORECASE)
-    
-    # 문장 구조 개선
-    for pattern, replacements in structure_improvements.items():
-        if re.search(pattern, advanced_text):
-            if random.random() < 0.7:  # 70% 확률로 구조 변경
-                replacement = random.choice(replacements)
-                advanced_text = re.sub(pattern, replacement, advanced_text)
-    
-    return advanced_text
-
-# 어휘 수준 평가 (간단한 버전)
-def evaluate_vocabulary_level(text):
-    # 영어 단어 수준을 나타내는 샘플 데이터 (실제로는 더 큰 데이터셋 필요)
-    basic_words = {'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 
-                  'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but'}
+                  'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but',
+                  'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will', 'my', 'one',
+                  'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if', 'about',
+                  'who', 'get', 'which', 'go', 'me', 'when', 'make', 'can', 'like', 'time',
+                  'no', 'just', 'him', 'know', 'take', 'people', 'into', 'year', 'your', 'good'}
     intermediate_words = {'achieve', 'consider', 'determine', 'establish', 'indicate', 'occur',
                         'participate', 'predict', 'provide', 'recognize', 'resolve', 'specific', 
                         'therefore', 'utilize', 'aspect', 'concept', 'context', 'diverse'}
@@ -688,8 +404,12 @@ def show_student_page():
                     # 텍스트 통계 분석
                         stats = analyze_text(user_text)
                     
-                        # 문법 오류 검사
-                        grammar_errors = check_grammar(user_text)
+                        try:
+                            # 문법 오류 검사
+                            grammar_errors = check_grammar(user_text)
+                        except Exception as e:
+                            st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
+                            grammar_errors = []
                         
                     # 어휘 분석
                     vocab_analysis = analyze_vocabulary(user_text)
@@ -966,9 +686,13 @@ def show_teacher_page():
                     if not user_text:
                         st.warning("텍스트를 입력해주세요.")
                     else:
-                        # 문법 오류 검사
-                        grammar_errors = check_grammar(user_text)
-                    
+                        try:
+                            # 문법 오류 검사
+                            grammar_errors = check_grammar(user_text)
+                        except Exception as e:
+                            st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
+                            grammar_errors = []
+                        
                     # 어휘 분석
                     vocab_analysis = analyze_vocabulary(user_text)
                     
@@ -1225,3 +949,599 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+@st.cache_resource
+def load_vocabulary_datasets():
+    # 온라인 소스에서 데이터셋 다운로드
+    basic_words_url = "https://raw.githubusercontent.com/첫1000단어/basic_words.txt"
+    intermediate_words_url = "https://raw.githubusercontent.com/중급5000단어/intermediate_words.txt"
+    advanced_words_url = "https://raw.githubusercontent.com/고급단어/advanced_words.txt"
+    
+    try:
+        import requests
+        basic = set(requests.get(basic_words_url).text.splitlines())
+        intermediate = set(requests.get(intermediate_words_url).text.splitlines())
+        advanced = set(requests.get(advanced_words_url).text.splitlines())
+        return {'basic': basic, 'intermediate': intermediate, 'advanced': advanced}
+    except:
+        # 다운로드 실패시 내장 데이터셋 사용
+        return default_vocabulary_sets()
+
+def evaluate_advanced_vocabulary(text):
+    words = custom_word_tokenize(text.lower())
+    
+    # 단어 빈도 기반 평가
+    word_frequencies = get_word_frequency_data()  # 단어별 빈도 데이터 로드
+    
+    rare_words = [w for w in words if w in word_frequencies and word_frequencies[w] < 0.001]
+    academic_words = [w for w in words if w in academic_word_list]
+    
+    vocab_score = (len(rare_words) * 2 + len(academic_words)) / max(len(words), 1)
+    return vocab_score
+
+@st.cache_resource
+def load_rewrite_model():
+    if not has_transformers:
+        return None, None
+        
+    try:
+        # T5 또는 GPT 기반 모델 로드
+        model_name = "t5-base"  # 또는 "gpt2-medium"
+        tokenizer = transformers.AutoTokenizer.from_pretrained(model_name)
+        model = transformers.AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        return tokenizer, model
+    except Exception as e:
+        st.warning(f"모델 로드 중 오류 발생: {e}")
+        return None, None
+
+def advanced_rewrite_text(text, level='advanced'):
+    tokenizer, model = load_rewrite_model()
+    if not tokenizer or not model:
+        # 폴백: 기존 규칙 기반 방식 사용
+        return rewrite_advanced_level(text)
+        
+    try:
+        import torch
+        prefix = f"paraphrase to {level} level: "
+        inputs = tokenizer(prefix + text, return_tensors="pt", max_length=512, truncation=True)
+        
+        outputs = model.generate(
+            inputs.input_ids, 
+            max_length=512,
+            temperature=0.8,  # 창의성 조절
+            num_return_sequences=1
+        )
+        
+        return tokenizer.decode(outputs[0], skip_special_tokens=True)
+    except Exception as e:
+        st.warning(f"AI 모델 처리 중 오류: {e}. 대체 방법으로 진행합니다.")
+        # 폴백: 기존 규칙 기반 방식 사용
+        return rewrite_advanced_level(text)
+
+def context_aware_rewrite(text, subject_area="general"):
+    # 주제별 어휘 데이터셋 로드
+    domain_vocabulary = load_domain_vocabulary(subject_area)
+    
+    sentences = custom_sent_tokenize(text)
+    rewritten = []
+    
+    # 문맥 유지하며 주제 관련 어휘로 강화
+    for i, sentence in enumerate(sentences):
+        # 이전/다음 문장 참조해서 문맥 유지
+        prev_context = sentences[i-1] if i > 0 else ""
+        next_context = sentences[i+1] if i < len(sentences)-1 else ""
+        
+        enhanced = enhance_sentence_with_domain(
+            sentence, 
+            domain_vocabulary, 
+            prev_context, 
+            next_context
+        )
+        rewritten.append(enhanced)
+    
+    return " ".join(rewritten)
+
+def transform_grammar_structure(sentence, level):
+    # 문법적 복잡성 레벨 매핑
+    complexity_patterns = {
+        "intermediate": [
+            # 단순 시제 → 완료 시제
+            (r'\b(do|does|did)\b', 'have done'),
+            # 능동태 → 수동태 변환
+            (r'(\w+)\s+(\w+ed|s)\s+(\w+)', r'\3 was \2ed by \1')
+        ],
+        "advanced": [
+            # 단순 조건문 → 가정법 변환
+            (r'If\s+(\w+)\s+(\w+),\s+(\w+)\s+(\w+)', r'Were \1 to \2, \3 would \4'),
+            # 분사구문 도입
+            (r'(\w+)\s+(\w+ed|s)\s+and\s+(\w+)', r'\1 \2ed, \3ing')
+        ]
+    }
+    
+    # 문법 구조 변환 적용
+    for pattern, replacement in complexity_patterns.get(level, []):
+        sentence = re.sub(pattern, replacement, sentence)
+    
+    return sentence
+
+def maintain_topic_coherence(sentences):
+    # 주제어 추출
+    topic_words = extract_topic_words(sentences)
+    
+    # 주제 일관성 강화
+    coherent_sentences = []
+    for sentence in sentences:
+        # 문장이 주제와 연관되어 있는지 확인하고 보강
+        if not has_topic_reference(sentence, topic_words):
+            # 주제 연결어 추가
+            sentence = add_topic_reference(sentence, topic_words)
+        coherent_sentences.append(sentence)
+    
+    # 전체 흐름 개선
+    add_transition_phrases(coherent_sentences)
+    
+    return coherent_sentences
+
+def genre_specific_rewrite(text, genre):
+    """
+    특정 장르(에세이, 비즈니스 이메일, 학술 논문 등)에 맞는 스타일로 재작성
+    """
+    genre_styles = {
+        "academic": {
+            "phrases": ["It can be argued that", "The evidence suggests that", 
+                       "This study examines", "The findings indicate"],
+            "tone": "formal",
+            "sentence_length": "long"
+        },
+        "business": {
+            "phrases": ["I am writing to inquire about", "I would like to request", 
+                      "Please find attached", "I look forward to hearing from you"],
+            "tone": "professional",
+            "sentence_length": "medium"
+        },
+        "creative": {
+            "phrases": ["Imagine a world where", "The air was thick with", 
+                      "In that moment", "Everything changed when"],
+            "tone": "descriptive", 
+            "sentence_length": "varied"
+        }
+    }
+    
+    style = genre_styles.get(genre, genre_styles["academic"])
+    return apply_genre_style(text, style)
+
+def optimize_complexity(text, target_level):
+    # 현재 텍스트 복잡도 분석
+    current_complexity = analyze_text_complexity(text)
+    
+    # 타겟 레벨과 현재 복잡도 비교
+    if current_complexity < target_level:
+        # 어휘 고급화
+        text = enhance_vocabulary(text)
+        # 문장 구조 복잡화
+        text = add_complexity(text)
+    elif current_complexity > target_level:
+        # 간결화
+        text = simplify_text(text)
+    
+    return text
+
+def culturally_appropriate_rewrite(text, target_culture="american"):
+    # 문화적 특성에 맞는 표현 데이터셋
+    cultural_expressions = {
+        "american": {
+            "idioms": ["hit the nail on the head", "ballpark figure"],
+            "references": ["Super Bowl", "Thanksgiving"],
+            "measurements": "imperial"  # feet, pounds
+        },
+        "british": {
+            "idioms": ["bob's your uncle", "chin up"],
+            "references": ["BBC", "Bank Holiday"],
+            "measurements": "metric"  # meters, kilograms
+        }
+    }
+    
+    culture_data = cultural_expressions.get(target_culture, cultural_expressions["american"])
+    return adapt_to_culture(text, culture_data)
+
+# 학술 단어 목록
+@st.cache_resource
+def get_academic_word_list():
+    # 학술 단어 목록 (예시)
+    return {'analyze', 'concept', 'data', 'environment', 'establish', 'evident', 
+            'factor', 'interpret', 'method', 'principle', 'process', 'research', 
+            'significant', 'theory', 'variable'}
+
+# 단어 빈도 데이터 로드
+@st.cache_resource
+def get_word_frequency_data():
+    # 영어 단어 빈도 데이터 (예시)
+    common_words = {'the': 0.05, 'be': 0.04, 'to': 0.03, 'of': 0.025, 'and': 0.02}
+    return common_words
+
+# 기본 단어 셋 정의
+@st.cache_resource
+def default_vocabulary_sets():
+    basic_words = {'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it'}
+    intermediate_words = {'achieve', 'consider', 'determine', 'establish', 'indicate'}
+    advanced_words = {'arbitrary', 'cognitive', 'encompass', 'facilitate', 'implicit'}
+    return {'basic': basic_words, 'intermediate': intermediate_words, 'advanced': advanced_words}
+
+# 주제별 어휘 데이터셋 로드
+@st.cache_resource
+def load_domain_vocabulary(subject_area="general"):
+    domain_vocabs = {
+        "general": ["discuss", "explain", "describe", "analyze"],
+        "business": ["market", "strategy", "investment", "revenue"],
+        "science": ["hypothesis", "experiment", "theory", "analysis"],
+        "technology": ["innovation", "interface", "algorithm", "platform"]
+    }
+    return domain_vocabs.get(subject_area, domain_vocabs["general"])
+
+# 주제어 추출
+def extract_topic_words(sentences, top_n=3):
+    all_words = []
+    for sentence in sentences:
+        words = custom_word_tokenize(sentence.lower())
+        words = [w for w in words if re.match(r'\w+', w) and w not in stopwords.words('english')]
+        all_words.extend(words)
+    
+    word_counts = Counter(all_words)
+    return [word for word, _ in word_counts.most_common(top_n)]
+
+# 문장이 주제와 연관되어 있는지 확인
+def has_topic_reference(sentence, topic_words):
+    words = custom_word_tokenize(sentence.lower())
+    return any(topic in words for topic in topic_words)
+
+# 주제 연결어 추가
+def add_topic_reference(sentence, topic_words):
+    if not topic_words:
+        return sentence
+    
+    topic = random.choice(topic_words)
+    reference_phrases = [
+        f"Regarding {topic}, ",
+        f"In terms of {topic}, ",
+        f"Concerning {topic}, "
+    ]
+    
+    return random.choice(reference_phrases) + sentence
+
+# 전환 문구 추가
+def add_transition_phrases(sentences):
+    if len(sentences) <= 1:
+        return sentences
+    
+    transitions = [
+        "Furthermore, ", "Moreover, ", "In addition, ",
+        "Consequently, ", "Therefore, ", "Thus, ",
+        "On the other hand, ", "However, ", "Nevertheless, "
+    ]
+    
+    for i in range(1, len(sentences)):
+        if random.random() < 0.4:  # 40% 확률로 전환 문구 추가
+            sentences[i] = random.choice(transitions) + sentences[i]
+    
+    return sentences
+
+# 문장 복잡도 분석
+def analyze_text_complexity(text):
+    sentences = custom_sent_tokenize(text)
+    words = custom_word_tokenize(text)
+    
+    # 평균 문장 길이
+    avg_sentence_length = len(words) / max(len(sentences), 1)
+    
+    # 긴 단어(6자 이상) 비율
+    long_words = [w for w in words if len(w) >= 6]
+    long_word_ratio = len(long_words) / max(len(words), 1)
+    
+    # 복합 문장 비율 (and, but, because 등 포함)
+    complex_markers = ['and', 'but', 'because', 'however', 'therefore', 'although', 'since']
+    complex_sentences = sum(1 for s in sentences if any(marker in custom_word_tokenize(s.lower()) for marker in complex_markers))
+    complex_ratio = complex_sentences / max(len(sentences), 1)
+    
+    # 복잡도 점수 (0~1)
+    complexity = (avg_sentence_length / 25 + long_word_ratio + complex_ratio) / 3
+    return min(max(complexity, 0), 1)  # 0과 1 사이로 제한
+
+# 어휘 고급화
+def enhance_vocabulary(text):
+    words = custom_word_tokenize(text)
+    enhanced = []
+    
+    # 기본 단어에 대한 고급 대체어
+    enhancements = {
+        'good': 'excellent',
+        'bad': 'detrimental',
+        'big': 'substantial',
+        'small': 'minimal',
+        'important': 'crucial',
+        'problem': 'challenge',
+        'use': 'utilize',
+        'make': 'construct',
+        'look': 'observe',
+        'think': 'contemplate'
+    }
+    
+    for word in words:
+        word_lower = word.lower()
+        if word_lower in enhancements and random.random() < 0.7:
+            replacement = enhancements[word_lower]
+            if word[0].isupper():
+                replacement = replacement.capitalize()
+            enhanced.append(replacement)
+        else:
+            enhanced.append(word)
+    
+    return ' '.join(enhanced)
+
+# 문장 구조 복잡화
+def add_complexity(text):
+    sentences = custom_sent_tokenize(text)
+    complex_sentences = []
+    
+    for sentence in sentences:
+        # 문장 길이에 따라 다른 전략 적용
+        if len(custom_word_tokenize(sentence)) < 10:
+            # 짧은 문장은 수식어구 추가
+            modifiers = [
+                "Interestingly, ", "Specifically, ", "Notably, ",
+                "In this context, ", "From this perspective, "
+            ]
+            sentence = random.choice(modifiers) + sentence
+        else:
+            # 긴 문장은 구조 변경
+            if sentence.startswith("I "):
+                sentence = sentence.replace("I ", "The author ")
+            elif random.random() < 0.3:
+                # 30% 확률로 수동태로 변경 시도
+                if " is " in sentence:
+                    parts = sentence.split(" is ")
+                    if len(parts) >= 2:
+                        sentence = parts[1] + " is " + parts[0]
+        
+        complex_sentences.append(sentence)
+    
+    return ' '.join(complex_sentences)
+
+# 문장 간소화
+def simplify_text(text):
+    sentences = custom_sent_tokenize(text)
+    simplified_sentences = []
+    
+    for sentence in sentences:
+        words = custom_word_tokenize(sentence)
+        if len(words) > 20:  # 긴 문장 분할
+            middle = len(words) // 2
+            first_half = ' '.join(words[:middle])
+            second_half = ' '.join(words[middle:])
+            simplified_sentences.append(first_half + '.')
+            simplified_sentences.append(second_half)
+        else:
+            simplified_sentences.append(sentence)
+    
+    return ' '.join(simplified_sentences)
+
+# 장르별 스타일 적용
+def apply_genre_style(text, style):
+    sentences = custom_sent_tokenize(text)
+    styled_sentences = []
+    
+    # 첫 문장에 스타일 구문 추가
+    if sentences and random.random() < 0.7:
+        phrases = style.get("phrases", [])
+        if phrases:
+            sentences[0] = random.choice(phrases) + " " + sentences[0].lower()
+    
+    # 나머지 문장에 대한 스타일 적용
+    for i, sentence in enumerate(sentences):
+        if i == 0:
+            styled_sentences.append(sentence)
+            continue
+        
+        # 스타일에 따른 문장 길이 조정
+        if style.get("sentence_length") == "long" and len(custom_word_tokenize(sentence)) < 10:
+            # 짧은 문장을 더 길게
+            modifiers = ["furthermore", "additionally", "consequently", "in this context"]
+            sentence = random.choice(modifiers) + ", " + sentence.lower()
+        elif style.get("sentence_length") == "short" and len(custom_word_tokenize(sentence)) > 15:
+            # 긴 문장을 분할
+            words = custom_word_tokenize(sentence)
+            middle = len(words) // 2
+            first_half = ' '.join(words[:middle])
+            second_half = ' '.join(words[middle:])
+            styled_sentences.append(first_half + '.')
+            sentence = second_half
+        
+        styled_sentences.append(sentence)
+    
+    return ' '.join(styled_sentences)
+
+# 문화적 맥락에 맞게 적응
+def adapt_to_culture(text, culture_data):
+    sentences = custom_sent_tokenize(text)
+    culturally_adapted = []
+    
+    for sentence in sentences:
+        # 10% 확률로 문화적 관용구 추가
+        if random.random() < 0.1 and culture_data.get("idioms"):
+            idiom = random.choice(culture_data.get("idioms"))
+            sentence = sentence + " " + idiom + "."
+        
+        # 측정 단위 변환
+        if culture_data.get("measurements") == "imperial":
+            sentence = re.sub(r'(\d+)\s*km', lambda m: f"{float(m.group(1)) * 0.621:.1f} miles", sentence)
+            sentence = re.sub(r'(\d+)\s*kg', lambda m: f"{float(m.group(1)) * 2.205:.1f} pounds", sentence)
+        elif culture_data.get("measurements") == "metric":
+            sentence = re.sub(r'(\d+)\s*miles', lambda m: f"{float(m.group(1)) * 1.609:.1f} km", sentence)
+            sentence = re.sub(r'(\d+)\s*pounds', lambda m: f"{float(m.group(1)) * 0.454:.1f} kg", sentence)
+        
+        culturally_adapted.append(sentence)
+    
+    return ' '.join(culturally_adapted)
+
+# 문장 단위 도메인 강화 
+def enhance_sentence_with_domain(sentence, domain_vocabulary, prev_context="", next_context=""):
+    words = custom_word_tokenize(sentence)
+    domain_enhanced = []
+    
+    for word in words:
+        word_lower = word.lower()
+        # 일반적인 단어를 도메인 관련 단어로 교체 (20% 확률)
+        if word_lower in ['good', 'great', 'important', 'interesting'] and random.random() < 0.2:
+            domain_word = random.choice(domain_vocabulary)
+            domain_enhanced.append(domain_word)
+        else:
+            domain_enhanced.append(word)
+    
+    enhanced_sentence = ' '.join(domain_enhanced)
+    
+    # 문맥을 고려한 연결 구문 추가
+    if prev_context and not any(sentence.lower().startswith(x) for x in ['however', 'moreover', 'furthermore']):
+        connectors = ['Furthermore', 'Moreover', 'In addition', 'Subsequently']
+        enhanced_sentence = f"{random.choice(connectors)}, {enhanced_sentence.lower()}"
+    
+    return enhanced_sentence
+
+# 고급 재작성을 위한 동의어 및 문구 사전
+@st.cache_resource
+def get_advanced_synonyms():
+    return {
+        'good': ['exemplary', 'exceptional', 'impeccable'],
+        'bad': ['detrimental', 'deplorable', 'egregious'],
+        'big': ['immense', 'formidable', 'monumental'],
+        'small': ['minuscule', 'negligible', 'infinitesimal'],
+        'happy': ['euphoric', 'exuberant', 'ecstatic'],
+        'sad': ['despondent', 'crestfallen', 'dejected'],
+        'important': ['imperative', 'indispensable', 'paramount'],
+        'difficult': ['formidable', 'insurmountable', 'Herculean'],
+        'easy': ['effortless', 'rudimentary', 'facile'],
+        'beautiful': ['resplendent', 'breathtaking', 'sublime']
+    }
+
+@st.cache_resource
+def get_advanced_phrases():
+    return {
+        r'\bi think\b': ['I postulate that', 'I am of the conviction that', 'It is my considered opinion that'],
+        r'\bi like\b': ['I am particularly enamored with', 'I hold in high regard', 'I find great merit in'],
+        r'\bi want\b': ['I aspire to', 'I am inclined towards', 'My inclination is toward'],
+        r'\blots of\b': ['a plethora of', 'an abundance of', 'a multitude of'],
+        r'\bmany of\b': ['a preponderance of', 'a substantial proportion of', 'a significant contingent of']
+    }
+
+# 영작문 재작성 기능 수정 (다양한 수준으로 변환)
+def rewrite_text(text, level='similar'):
+    """
+    학생이 작성한 영어 텍스트를 지정된 수준으로 재작성합니다.
+    
+    Parameters:
+    - text: 원본 텍스트
+    - level: 'similar' (비슷한 수준), 'improved' (약간 더 높은 수준), 'advanced' (고급 수준)
+    
+    Returns:
+    - 재작성된 텍스트
+    """
+    if not text.strip():
+        return ""
+    
+    try:
+        # 고급 AI 모델 사용 가능한 경우
+        if level == 'advanced' and has_transformers:
+            try:
+                return advanced_rewrite_text(text, level)
+            except Exception as e:
+                st.warning(f"고급 모델 사용 중 오류: {e}. 대체 방법으로 진행합니다.")
+        
+        # 문장 단위로 분석 및 재작성
+        sentences = custom_sent_tokenize(text)
+        rewritten_sentences = []
+        
+        for sentence in sentences:
+            # 원본 문장 구존 보존
+            if level == 'similar':
+                rewritten = rewrite_similar_level(sentence)
+            # 약간 더 높은 수준으로 개선
+            elif level == 'improved':
+                rewritten = rewrite_improved_level(sentence)
+            # 고급 수준으로 변환
+            elif level == 'advanced':
+                rewritten = rewrite_advanced_level(sentence)
+            else:
+                rewritten = sentence
+            
+            rewritten_sentences.append(rewritten)
+        
+        # 문장 구조 변환 패턴 추가
+        structure_transformations = {
+            r'^I believe': ['In my opinion', 'From my perspective', 'I am of the view that'],
+            r'^There is': ['There exists', 'We can observe', 'It is evident that there is'],
+            r'^It is important': ['It is crucial', 'It is essential', 'A key consideration is'],
+        }
+        
+        # 재작성 함수에 적용
+        for i, sentence in enumerate(rewritten_sentences):
+            for pattern, replacements in structure_transformations.items():
+                if re.search(pattern, sentence):
+                    replacement = random.choice(replacements)
+                    rewritten_sentences[i] = re.sub(pattern, replacement, sentence)
+        
+        # 주제 일관성 강화 및 흐름 개선 (advanced 모드에서만)
+        if level == 'advanced':
+            rewritten_sentences = maintain_topic_coherence(rewritten_sentences)
+        
+        return ' '.join(rewritten_sentences)
+    except Exception as e:
+        st.error(f"텍스트 재작성 중 오류가 발생했습니다: {e}")
+        return text
+
+# 고급 수준으로 재작성
+def rewrite_advanced_level(sentence):
+    # 고급 어휘로 대체
+    advanced_synonyms = get_advanced_synonyms()
+    advanced_phrases = get_advanced_phrases()
+    
+    # 문장 구조 개선 패턴
+    structure_improvements = {
+        r'^I am ': ['Being ', 'As someone who is '],
+        r'^I have ': ['Having ', 'Possessing '],
+        r'^This is ': ['This constitutes ', 'This represents '],
+        r'^There are ': ['There exist ', 'One can observe '],
+        r'^It is ': ['It remains ', 'It stands as '],
+    }
+    
+    # 우선 단어 수준 개선
+    words = custom_word_tokenize(sentence)
+    result = []
+    
+    for word in words:
+        word_lower = word.lower()
+        if word_lower in advanced_synonyms and random.random() < 0.8:  # 80% 확률로 대체
+            synonyms = advanced_synonyms[word_lower]
+            replacement = random.choice(synonyms)
+            
+            # 대문자 보존
+            if word[0].isupper():
+                replacement = replacement.capitalize()
+            
+            result.append(replacement)
+        else:
+            result.append(word)
+    
+    advanced_text = ' '.join(result)
+    
+    # 문구 패턴 개선
+    for pattern, replacements in advanced_phrases.items():
+        if re.search(pattern, advanced_text, re.IGNORECASE):
+            replacement = random.choice(replacements)
+            advanced_text = re.sub(pattern, replacement, advanced_text, flags=re.IGNORECASE)
+    
+    # 문장 구조 개선
+    for pattern, replacements in structure_improvements.items():
+        if re.search(pattern, advanced_text):
+            if random.random() < 0.7:  # 70% 확률로 구조 변경
+                replacement = random.choice(replacements)
+                advanced_text = re.sub(pattern, replacement, advanced_text)
+    
+    return advanced_text
