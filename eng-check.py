@@ -1434,7 +1434,7 @@ def evaluate_advanced_vocabulary(text):
     vocab_score = (len(rare_words) * 2 + len(academic_words)) / max(len(words), 1)
     return vocab_score
 
-# 텍스트를 음성으로 변환하는 함수 추가 (라인 360 이후에 추가)
+# 텍스트를 음성으로 변환하는 함수
 async def text_to_speech(text, voice="en-US-JennyNeural", output_file=None):
     """
     텍스트를 음성으로 변환하고 파일로 저장합니다.
