@@ -524,197 +524,105 @@ def check_grammar_with_grammarcheck_api(text):
 
 # 문법 검사 함수 (여러 엔진 통합)
 def check_grammar(text):
+    """여러 엔진을 사용하여 문법을 체크합니다."""
     if not text.strip():
         return []
-    
+        
     all_errors = []
     
-    try:
-        # 1. 한국인 영어 학습자 맞춤 오류 검사 (우선 적용)
-        korean_errors = check_korean_english_errors(text)
-        all_errors.extend(korean_errors)
-        
-        # 2. GrammarBot API 사용 (미국영어 문법 체크)
-        if has_grammarbot:
-            try:
-                grammarbot_errors = check_grammar_with_grammarbot(text)
-                all_errors.extend(grammarbot_errors)
-            except Exception as e:
-                print(f"GrammarBot 오류: {e}")
-        
-        # 3. LanguageTool을 사용한 문법 검사 (사용 가능한 경우)
-        if has_languagetool:
-            try:
-                tool = get_language_tool()
-                if tool:
-                    # LanguageTool을 사용한 고급 문법 및 맞춤법 검사
-                    lt_matches = tool.check(text)
-                    
-                    for match in lt_matches:
-                        # 매치된 위치와 길이 계산
-                        offset = match.offset
-                        error_length = match.errorLength
-                        message = match.message
-                        
-                        # 제안된 수정 사항이 있으면 추가
-                        replacements = []
-                        
-                        # LanguageTool 객체에서 replacements 속성 추출 방식 개선
-                        try:
-                            if hasattr(match, 'replacements'):
-                                replacements = list(match.replacements)  # 리스트로 변환
-                            elif hasattr(match, 'suggestions'):
-                                replacements = list(match.suggestions)
-                            elif hasattr(match, 'getSuggestions') and callable(match.getSuggestions):
-                                replacements = list(match.getSuggestions()) 
-                        except Exception as e:
-                            # replacements 추출 실패 시 빈 리스트 유지
-                            print(f"LanguageTool replacements 추출 실패: {e}")
-                        
-                        all_errors.append({
-                            "offset": offset,
-                            "errorLength": error_length,
-                            "message": message,
-                            "replacements": replacements,
-                            "source": "LanguageTool",  # 오류 소스 표시
-                            "context": text[max(0, offset-20):min(len(text), offset+error_length+20)]  # 오류 문맥 저장
-                        })
-                    
-                    # LanguageTool 세션 닫기
-                    tool.close()
-            except Exception as e:
-                print(f"LanguageTool 오류: {e}")
-        
-        # 4. 기존 텍스트 분석 로직 (LanguageTool과 GrammarBot이 모두 없는 경우)
-        if not has_languagetool and not has_grammarbot:
-            blob = TextBlob(text)
-            
-            # 문장 단위로 분석
-            sentences = custom_sent_tokenize(text)
-            
-            # 맞춤법 검사
-            checker = get_spell_checker()
-            words = custom_word_tokenize(text)
-            
-            # 사용자 정의 제안 사전 로드
-            custom_suggestions = get_custom_suggestions()
-            
-            # 문장의 시작 위치를 추적하기 위한 변수
-            offset = 0
-            
-            for sentence in sentences:
-                # 간단한 문법 검사 (TextBlob의 sentiment 사용)
-                try:
-                    sentence_blob = TextBlob(sentence)
-                    
-                    # 문장의 단어 분석
-                    for word in custom_word_tokenize(sentence):
-                        if word.isalpha():  # 알파벳 단어만 확인
-                            # 맞춤법 확인 (enchant가 있는 경우에만)
-                            if checker and 'has_enchant' in globals() and has_enchant and not checker.check(word):
-                                # 사용자 정의 제안이 있는지 먼저 확인
-                                word_lower = word.lower()
-                                if word_lower in custom_suggestions:
-                                    suggestions = custom_suggestions[word_lower]
-                                else:
-                                    # 기존 라이브러리의 제안 사용
-                                    suggestions = checker.suggest(word)[:3]  # 최대 3개 제안
-                                
-                                word_offset = text.find(word, offset)
-                                
-                                if word_offset != -1:
-                                    all_errors.append({
-                                        "offset": word_offset,
-                                        "errorLength": len(word),
-                                        "message": f"맞춤법 오류: '{word}'",
-                                        "replacements": suggestions,
-                                        "source": "PyEnchant"  # 오류 소스 표시
-                                    })
-                            # PySpellChecker 사용 (enchant 대신)
-                            elif checker and 'has_spellchecker' in globals() and has_spellchecker and word.lower() not in checker:
-                                # 사용자 정의 제안이 있는지 먼저 확인
-                                word_lower = word.lower()
-                                if word_lower in custom_suggestions:
-                                    suggestions = custom_suggestions[word_lower]
-                                else:
-                                    # PySpellChecker 제안 사용
-                                    suggestions = [checker.correction(word)] + list(checker.candidates(word))[:2]
-                                
-                                word_offset = text.find(word, offset)
-                                
-                                if word_offset != -1:
-                                    all_errors.append({
-                                        "offset": word_offset,
-                                        "errorLength": len(word),
-                                        "message": f"맞춤법 오류: '{word}'",
-                                        "replacements": suggestions,
-                                        "source": "PySpellChecker"  # 오류 소스 표시
-                                    })
-                            # TextBlob을 사용한 맞춤법 검사 대안 (다른 라이브러리가 없는 경우)
-                            elif not checker:
-                                try:
-                                    # 사용자 정의 제안이 있는지 먼저 확인
-                                    word_lower = word.lower()
-                                    if word_lower in custom_suggestions:
-                                        corrected = custom_suggestions[word_lower][0]  # 첫 번째 제안 사용
-                                        word_offset = text.find(word, offset)
-                                        if word_offset != -1:
-                                            all_errors.append({
-                                                "offset": word_offset,
-                                                "errorLength": len(word),
-                                                "message": f"맞춤법 오류: '{word}'",
-                                                "replacements": custom_suggestions[word_lower],
-                                                "source": "CustomDictionary"  # 오류 소스 표시
-                                            })
-                                    else:
-                                        # TextBlob을 사용한 기존 로직
-                                        word_blob = TextBlob(word)
-                                        corrected = str(word_blob.correct())
-                                        if corrected != word and len(word) > 3:  # 짧은 단어는 무시
-                                            word_offset = text.find(word, offset)
-                                            if word_offset != -1:
-                                                all_errors.append({
-                                                    "offset": word_offset,
-                                                    "errorLength": len(word),
-                                                    "message": f"맞춤법 오류: '{word}'",
-                                                    "replacements": [corrected],
-                                                    "source": "TextBlob"  # 오류 소스 표시
-                                                })
-                                except Exception as e:
-                                    # TextBlob 맞춤법 검사 오류 무시
-                                    pass
-                except Exception as e:
-                    # 문장 분석 중 오류 발생시 해당 문장 건너뛰기
-                    pass
-                    
-                # 다음 문장의 검색을 위해 오프셋 업데이트
-                offset += len(sentence)
-        
-        # 5. Gramformer로 전체 텍스트 교정 제안 (선택적)
-        if has_gramformer:
-            try:
-                corrected_text = correct_grammar_with_gramformer(text)
-                
-                # 원본과 교정 텍스트가 다르면 제안으로 추가
-                if corrected_text != text:
-                    all_errors.append({
-                        "offset": 0,
-                        "errorLength": len(text),
-                        "message": "전체 텍스트 문법 교정 제안",
-                        "replacements": [corrected_text],
-                        "source": "Gramformer"
-                    })
-            except Exception as e:
-                print(f"Gramformer 오류: {e}")
-    except Exception as e:
-        st.error(f"텍스트 분석 중 오류가 발생했습니다: {e}")
+    # 한국어 특화 오류 패턴 체크
+    korean_english_errors = check_korean_english_errors(text)
+    all_errors.extend(korean_english_errors)
     
-    # 중복 오류 제거 (같은 위치에 여러 오류가 감지된 경우)
+    # TextBlob 문법 체크 사용
+    if has_textblob:
+        try:
+            textblob_errors = check_grammar_with_textblob(text)
+            all_errors.extend(textblob_errors)
+        except Exception as e:
+            st.error(f"TextBlob 문법 검사 오류: {str(e)}")
+    
+    # LanguageTool 검사
+    if has_languagetool:
+        try:
+            tool = get_language_tool()
+            languagetool_errors = tool.check(text)
+            
+            for error in languagetool_errors:
+                all_errors.append({
+                    'message': error.message,
+                    'offset': error.offset,
+                    'length': error.errorLength,
+                    'replacements': error.replacements,
+                    'rule': error.ruleId,
+                    'context': text[max(0, error.offset - 20):min(len(text), error.offset + error.errorLength + 20)]
+                })
+        except Exception as e:
+            st.error(f"LanguageTool 오류: {str(e)}")
+    
+    # GrammarBot 검사
+    if has_grammarbot and not all_errors:
+        try:
+            grammarbot_errors = check_grammar_with_grammarbot(text)
+            all_errors.extend(grammarbot_errors)
+        except Exception as e:
+            st.error(f"GrammarBot 오류: {str(e)}")
+    
+    # 철자 검사 (SpellChecker)
+    try:
+        spell = get_spell_checker()
+        words = custom_word_tokenize(text)
+        misspelled = spell.unknown(words)
+        
+        for word in misspelled:
+            # 커스텀 제안 확인
+            custom_suggestions = get_custom_suggestions()
+            if word.lower() in custom_suggestions:
+                suggestions = custom_suggestions[word.lower()]
+            else:
+                suggestions = spell.candidates(word)
+            
+            # 단어 위치 찾기
+            word_start = text.find(word)
+            if word_start == -1:
+                continue
+                
+            all_errors.append({
+                'message': f"철자 오류: '{word}'",
+                'offset': word_start,
+                'length': len(word),
+                'replacements': list(suggestions),
+                'rule': 'SPELLING',
+                'context': text[max(0, word_start - 20):min(len(text), word_start + len(word) + 20)]
+            })
+    except Exception as e:
+        st.error(f"철자 검사 오류: {str(e)}")
+    
+    # Gramformer 검사 추가 (전체 문장 교정)
+    if has_gramformer:
+        try:
+            corrected_text = correct_grammar_with_gramformer(text)
+            if corrected_text and corrected_text != text:
+                all_errors.append({
+                    'message': "문법 교정 제안",
+                    'offset': 0,
+                    'length': len(text),
+                    'replacements': [corrected_text],
+                    'rule': 'GRAMFORMER_CORRECTION',
+                    'context': text
+                })
+        except Exception as e:
+            st.error(f"Gramformer 오류: {str(e)}")
+    
+    # 결과를 정렬: 오프셋 기준
+    all_errors.sort(key=lambda x: x['offset'])
+    
+    # 중복 제거: 같은 위치에 있는 오류 중 가장 유용한 것만 유지
     filtered_errors = []
     error_positions = set()
     
     for error in all_errors:
-        position = (error['offset'], error['errorLength'])
+        position = (error.get('offset', 0), error.get('length', 0))
         if position not in error_positions:
             error_positions.add(position)
             filtered_errors.append(error)
@@ -2019,3 +1927,56 @@ def evaluate_advanced_vocabulary(text):
     words = custom_word_tokenize(text.lower())
     
     # 단어 빈도 기반 평가
+
+# TextBlob 문법 체크 기능 추가
+try:
+    from textblob import TextBlob
+    has_textblob = True
+except ImportError:
+    has_textblob = False
+    print("textblob이 설치되어 있지 않습니다. 기본 문법 검사 기능을 사용합니다.")
+
+# TextBlob을 사용한 문법 체크 함수 추가
+def check_grammar_with_textblob(text):
+    """TextBlob 라이브러리를 사용하여 문법을 체크합니다."""
+    if not has_textblob:
+        return []
+    
+    errors = []
+    blob = TextBlob(text)
+    
+    sentences = custom_sent_tokenize(text)
+    for i, sentence in enumerate(sentences):
+        # 철자 검사
+        sentence_blob = TextBlob(sentence)
+        misspelled = sentence_blob.correct()
+        
+        if str(misspelled) != sentence:
+            # 문장 내 단어별로 분석
+            words = custom_word_tokenize(sentence)
+            corrected_words = custom_word_tokenize(str(misspelled))
+            
+            # 길이가 다를 수 있으므로 최소 길이만큼 비교
+            min_len = min(len(words), len(corrected_words))
+            for j in range(min_len):
+                if words[j] != corrected_words[j]:
+                    # 시작 위치 계산
+                    start_pos = text.find(sentence)
+                    if start_pos == -1:
+                        continue
+                    
+                    # 단어 시작 위치 계산 (간단한 추정)
+                    word_start = start_pos + sentence.find(words[j])
+                    if word_start == -1:
+                        continue
+                    
+                    errors.append({
+                        'message': f"철자 오류: '{words[j]}' → '{corrected_words[j]}'",
+                        'offset': word_start,
+                        'length': len(words[j]),
+                        'replacements': [corrected_words[j]],
+                        'rule': 'TEXTBLOB_SPELLING',
+                        'context': sentence
+                    })
+    
+    return errors
