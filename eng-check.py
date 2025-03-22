@@ -694,18 +694,15 @@ def show_student_page():
                                     temp_dir = tempfile.gettempdir()
                                     audio_file_path = os.path.join(temp_dir, f"speech_tab1_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
                                     
-                                    # 비동기 함수 실행
-                                    loop = asyncio.new_event_loop()
-                                    asyncio.set_event_loop(loop)
-                                    audio_path = loop.run_until_complete(text_to_speech(user_text, voice_model, audio_file_path))
-                                    loop.close()
+                                    # 동기식 래퍼 함수를 사용하여 음성 파일 생성
+                                    audio_path = sync_text_to_speech(user_text, voice_model, audio_file_path)
                                     
                                     # 세션 상태에 오디오 파일 경로 저장
                                     st.session_state[audio_key] = audio_path
                                     st.session_state[f"{audio_key}_playing"] = True
                                     st.experimental_rerun()
                                 except Exception as e:
-                                    st.error(f"음성 생성 중 오류가 발생했습니다: {e}")
+                                    st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
                         else:
                             st.warning("텍스트를 먼저 입력해주세요.")
                 else:
@@ -718,11 +715,8 @@ def show_student_page():
                     
                     # 오디오 플레이어 표시 (현재 페이지 위치에 표시)
                     if st.session_state[f"{audio_key}_playing"]:
-                        audio_path = st.session_state[audio_key]
-                        if os.path.exists(audio_path):
-                            # 음성 플레이어 표시
-                            audio_html = get_audio_player_html(audio_path, loop_count=5)
-                            st.markdown(audio_html, unsafe_allow_html=True)
+                        audio_html = get_audio_player_html(st.session_state[audio_key], loop_count=5)
+                        st.markdown(audio_html, unsafe_allow_html=True)
         
         # 분석 버튼 행
         col1, col2 = st.columns([3, 1])
@@ -1004,22 +998,23 @@ def show_student_page():
                         if rewritten:
                             if st.button("음성 파일 생성", key="generate_speech"):
                                 with st.spinner("음성 파일을 생성 중입니다..."):
-                                    # 선택된 음성 모델 가져오기
-                                    voice_model = voice_options[selected_voice]
-                                    
-                                    # 임시 파일 경로 생성
-                                    temp_dir = tempfile.gettempdir()
-                                    audio_file_path = os.path.join(temp_dir, f"speech_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
-                                    
-                                    # 비동기 함수 실행을 위한 런타임 설정
-                                    loop = asyncio.new_event_loop()
-                                    asyncio.set_event_loop(loop)
-                                    audio_path = loop.run_until_complete(text_to_speech(rewritten, voice_model, audio_file_path))
-                                    
-                                    # 세션 상태에 오디오 파일 경로 저장
-                                    st.session_state.audio_path = audio_path
-                                    st.success("음성 파일이 생성되었습니다!")
-                                    st.experimental_rerun()  # 재실행하여 오디오 플레이어 표시
+                                    try:
+                                        # 선택된 음성 모델 가져오기
+                                        voice_model = voice_options[selected_voice]
+                                        
+                                        # 임시 파일 경로 생성
+                                        temp_dir = tempfile.gettempdir()
+                                        audio_file_path = os.path.join(temp_dir, f"speech_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
+                                        
+                                        # 동기식 래퍼 함수를 사용하여 음성 파일 생성
+                                        audio_path = sync_text_to_speech(rewritten, voice_model, audio_file_path)
+                                        
+                                        # 세션 상태에 오디오 파일 경로 저장
+                                        st.session_state.audio_path = audio_path
+                                        st.success("음성 파일이 생성되었습니다!")
+                                        st.experimental_rerun()  # 재실행하여 오디오 플레이어 표시
+                                    except Exception as e:
+                                        st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
             
                     # 오디오 플레이어 표시
                     if 'audio_path' in st.session_state and os.path.exists(st.session_state.audio_path):
@@ -1460,6 +1455,28 @@ async def text_to_speech(text, voice="en-US-JennyNeural", output_file=None):
     await communicate.save(output_file)
     
     return output_file
+
+# 비동기 함수를 동기식으로 호출하는 래퍼 함수
+def sync_text_to_speech(text, voice="en-US-JennyNeural", output_file=None):
+    """
+    text_to_speech 함수를 동기식으로 호출하는 래퍼 함수
+    
+    Parameters:
+    - text: 음성으로 변환할 텍스트
+    - voice: 음성 모델 (기본값: 'en-US-JennyNeural')
+    - output_file: 출력 파일 경로 (None인 경우 임시 파일 생성)
+    
+    Returns:
+    - 음성 파일 경로
+    """
+    # 비동기 함수 실행을 위한 런타임 설정
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        audio_path = loop.run_until_complete(text_to_speech(text, voice, output_file))
+        return audio_path
+    finally:
+        loop.close()
 
 # 음성 파일을 HTML 오디오 요소로 변환하는 함수
 def get_audio_player_html(audio_path, loop_count=5, autoplay=True):
