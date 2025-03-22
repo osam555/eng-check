@@ -277,26 +277,19 @@ def get_spell_checker():
             print(f"PySpellChecker 초기화 오류: {e}")
     
     # 둘 다 실패한 경우 None 반환
-    return None
+            return None
 
 # LanguageTool 검사기 초기화 함수
 def get_language_tool():
     """
     LanguageTool 검사기를 초기화하고 반환합니다.
     """
-    if has_languagetool:
-        try:
-            # 로컬 서버가 실행 중인 경우 연결 (빠른 속도)
-            return language_tool_python.LanguageTool('en-US')
-        except Exception as e:
-            print(f"LanguageTool 초기화 오류: {e}")
-            try:
-                # 원격 API 사용 (백업)
-                return language_tool_python.LanguageToolPublicAPI('en-US')
-            except Exception as e:
-                print(f"LanguageTool 원격 API 초기화 오류: {e}")
-    
-    return None
+    try:
+        import language_tool_python
+        return language_tool_python.LanguageTool('en-US')
+    except Exception as e:
+        st.error(f"LanguageTool 초기화 오류: {str(e)}")
+        return None
 
 # GrammarBot 검사기 초기화 함수
 def get_grammar_bot():
@@ -527,7 +520,7 @@ def check_grammar(text):
     """여러 엔진을 사용하여 문법을 체크합니다."""
     if not text.strip():
         return []
-        
+    
     all_errors = []
     
     # 한국어 특화 오류 패턴 체크
@@ -643,79 +636,91 @@ def check_additional_patterns(text):
     """한국인 학습자가 자주 범하는 오류 패턴을 검사합니다."""
     errors = []
     
-    # 패턴 검사용 텍스트를 소문자로 변환
-    text_lower = text.lower()
-    
-    # 전체 텍스트에서 직접 패턴 검사
-    # 1. "impeachment the" 패턴 검사
-    pattern_impeachment = r'impeachment\s+the'
-    for match in re.finditer(pattern_impeachment, text_lower):
-        start = match.start()
-        end = match.end()
-        original_text = text[start:end]
-        
-        errors.append({
-            'message': "전치사 누락: 'impeachment the' → 'impeachment of the'",
-            'offset': start,
-            'length': len(original_text),
-            'replacements': ['impeachment of the'],
-            'rule': 'MISSING_PREPOSITION',
-            'context': text[max(0, start-20):min(len(text), end+20)]
-        })
-    
-    # 2. "has serious" 끝에 나오는 패턴 검사
-    pattern_incomplete = r'has\s+serious(?:\s*$|\s+(?:and|but|or))'
-    for match in re.finditer(pattern_incomplete, text_lower):
-        start = match.start()
-        end = match.end()
-        original_text = text[start:end]
-        
-        errors.append({
-            'message': "불완전 문장: 명사가 필요합니다. 'has serious' → 'has serious consequences'",
-            'offset': start,
-            'length': len(original_text),
-            'replacements': ['has serious consequences', 'has serious implications', 'has serious effects'],
-            'rule': 'INCOMPLETE_SENTENCE',
-            'context': text[max(0, start-20):min(len(text), end+20)]
-        })
-    
-    # 3. "related the" 패턴 검사
-    pattern_related = r'related\s+the'
-    for match in re.finditer(pattern_related, text_lower):
-        start = match.start()
-        end = match.end()
-        original_text = text[start:end]
-        
-        errors.append({
-            'message': "전치사 누락: 'related the' → 'related to the'",
-            'offset': start,
-            'length': len(original_text),
-            'replacements': ['related to the'],
-            'rule': 'MISSING_PREPOSITION',
-            'context': text[max(0, start-20):min(len(text), end+20)]
-        })
-    
-    # 문장별 검사도 유지 (기존 코드)
+    # 문장들로 분리
     sentences = custom_sent_tokenize(text)
     current_pos = 0
     
     for sentence in sentences:
-        # ... existing code for sentence-level patterns ...
+        # 전치사 누락 패턴: "impeachment the" -> "impeachment of the"
+        pattern_impeachment = r'impeachment\s+the'
+        matches = re.finditer(pattern_impeachment, sentence, re.IGNORECASE)
+        for match in matches:
+            start_in_sentence = match.start()
+            length = match.end() - match.start()
+            start_in_text = text.find(sentence, current_pos) + start_in_sentence
+            
+            if start_in_text >= 0:
+                                errors.append({
+                    'message': "전치사 누락: 'impeachment the' → 'impeachment of the'",
+                    'offset': start_in_text,
+                    'length': length,
+                    'replacements': ['impeachment of the'],
+                    'rule': 'MISSING_PREPOSITION',
+                    'context': sentence
+                })
+        
+        # 불완전 문장 패턴: "has serious" 다음에 명사가 없는 경우
+        pattern_incomplete = r'has\s+serious\s*$'
+        matches = re.finditer(pattern_incomplete, sentence, re.IGNORECASE)
+        for match in matches:
+            start_in_sentence = match.start()
+            length = match.end() - match.start()
+            start_in_text = text.find(sentence, current_pos) + start_in_sentence
+            
+            if start_in_text >= 0:
+                                        errors.append({
+                    'message': "불완전 문장: 명사가 필요합니다. 'has serious' → 'has serious consequences'",
+                    'offset': start_in_text,
+                    'length': length,
+                    'replacements': ['has serious consequences', 'has serious implications', 'has serious effects'],
+                    'rule': 'INCOMPLETE_SENTENCE',
+                    'context': sentence
+                })
+        
+        # 기타 전치사 누락 패턴들
+        # "related to" 다음에 "the"가 오는 경우 체크
+        pattern_related = r'related\s+the'
+        matches = re.finditer(pattern_related, sentence, re.IGNORECASE)
+        for match in matches:
+            start_in_sentence = match.start()
+            length = match.end() - match.start()
+            start_in_text = text.find(sentence, current_pos) + start_in_sentence
+            
+            if start_in_text >= 0:
+                                            errors.append({
+                    'message': "전치사 누락: 'related the' → 'related to the'",
+                    'offset': start_in_text,
+                    'length': length,
+                    'replacements': ['related to the'],
+                    'rule': 'MISSING_PREPOSITION',
+                    'context': sentence
+                })
+                
+        # 대응하는 to-be 동사가 없는 경우
+        pattern_missing_verb = r'(the\s+\w+(?:\s+\w+){0,3})\s+(?:very|so|quite|extremely)\s+(\w+)(?:\s+(?:and|but|or)\s+(?:very|so|quite|extremely)\s+(\w+))?(?:\s*[,.]|\s+(?:that|which|who)|\s*$)'
+        matches = re.finditer(pattern_missing_verb, sentence, re.IGNORECASE)
+        for match in matches:
+            start_in_sentence = match.start()
+            length = match.end() - match.start()
+            start_in_text = text.find(sentence, current_pos) + start_in_sentence
+            
+            subject = match.group(1)
+            adjective = match.group(2)
+            
+            if start_in_text >= 0:
+                errors.append({
+                    'message': f"동사 누락: '{subject} {adjective}' → '{subject} is {adjective}'",
+                    'offset': start_in_text,
+                    'length': length,
+                    'replacements': [f"{subject} is {adjective}"],
+                    'rule': 'MISSING_VERB',
+                    'context': sentence
+                })
         
         # 현재 위치 업데이트
         current_pos += len(sentence)
     
-    # 중복 제거
-    unique_errors = []
-    error_positions = set()
-    
-    for error in errors:
-        position = (error['offset'], error['length'])
-        if position not in error_positions:
-            error_positions.add(position)
-            unique_errors.append(error)
-    
-    return unique_errors
+    return errors
 
 # 문법 오류 시각화 및 표시를 위한 함수
 def display_grammar_errors(text, errors):
@@ -943,17 +948,17 @@ def rewrite_similar_level(text):
         words = custom_word_tokenize(sentence)
         new_words = []
     
-    for word in words:
-        word_lower = word.lower()
+        for word in words:
+            word_lower = word.lower()
             # 20% 확률로 동의어 교체 시도
-        if word_lower in synonyms and random.random() < 0.2:
+            if word_lower in synonyms and random.random() < 0.2:
                 replacement = random.choice(synonyms[word_lower])
             # 대문자 보존
-        if word[0].isupper():
+            if word[0].isupper():
                 replacement = replacement.capitalize()
                 new_words.append(replacement)
         else:
-                new_words.append(word)
+            new_words.append(word)
         
         rewritten.append(' '.join(new_words))
     
@@ -1004,7 +1009,7 @@ def rewrite_improved_level(text):
                 # 원래 단어가 대문자로 시작하면 교체 단어도 대문자로 시작
                 if word[0].isupper() and isinstance(replacement, str):
                     replacement = replacement.capitalize()
-                
+            
                 words[i] = replacement
         
         # 문장 재구성
@@ -1162,7 +1167,7 @@ def show_student_page():
         input_col, listen_col = st.columns([3, 1])
         
         with input_col:
-          user_text = st.text_area("아래에 영어 작문을 입력하세요", height=200, key="text_tab1")
+            user_text = st.text_area("아래에 영어 작문을 입력하세요", height=200, key="text_tab1")
         
         with listen_col:
             # 음성 생성/재생 버튼
@@ -1323,8 +1328,6 @@ def show_student_page():
                                 for r in error['replacements'][:3]:  # 최대 3개만 표시
                                     if isinstance(r, str):
                                         suggestions.append(r)
-                                    else:
-                                        suggestions.append(str(r))
                                 st.write(f"**수정 제안:** {', '.join(suggestions)}")
                 
                 # 오류 통계
@@ -1359,7 +1362,7 @@ def show_student_page():
                 
                 # fig 변수 확인 후 시각화
                 if fig is not None:
-                    st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
                         
@@ -1497,7 +1500,7 @@ def show_student_page():
                     
                     with col1:
                         # 텍스트 다운로드 버튼
-                       if rewritten:
+                        if rewritten:
                             text_output = io.BytesIO()
                             text_output.write(rewritten.encode('utf-8'))
                             text_output.seek(0)
@@ -1566,7 +1569,7 @@ def show_student_page():
                                 data=audio_bytes,
                                 file_name=f"audio_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
                                 mime="audio/wav"
-                            )
+                        )
                     
                     # 원본과 재작성 텍스트 비교
                     if rewrite_text_input and rewritten:
@@ -1627,15 +1630,15 @@ def show_teacher_page():
         # 모든 분석을 한 번에 실행하는 버튼
         with col1:
             if st.button("전체 분석하기", key="teacher_analyze_all", use_container_width=True):
-                if not user_text:
-                    st.warning("텍스트를 입력해주세요.")
-                else:
-                    # 문법 오류 검사
-                    try:
-                        grammar_errors = check_grammar(user_text)
-                    except Exception as e:
-                        st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
-                        grammar_errors = []
+                    if not user_text:
+                        st.warning("텍스트를 입력해주세요.")
+                    else:
+                        # 문법 오류 검사
+                        try:
+                            grammar_errors = check_grammar(user_text)
+                        except Exception as e:
+                            st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
+                            grammar_errors = []
                     
                     # 어휘 분석
                     vocab_analysis = analyze_vocabulary(user_text)
@@ -1715,8 +1718,6 @@ def show_teacher_page():
                                 for r in error['replacements'][:3]:  # 최대 3개만 표시
                                     if isinstance(r, str):
                                         suggestions.append(r)
-                                    else:
-                                        suggestions.append(str(r))
                                 st.write(f"**수정 제안:** {', '.join(suggestions)}")
                 
                 # 오류 통계
@@ -1737,7 +1738,7 @@ def show_teacher_page():
                                 file_name=f"audio_essay_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
                                 mime="audio/wav"
                             )
-        
+            
         with result_tab2:
             if 'teacher_analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.teacher_analysis_results:
                 vocab_analysis = st.session_state.teacher_analysis_results['vocab_analysis']
@@ -1751,7 +1752,7 @@ def show_teacher_page():
                 
                 # fig 변수 확인 후 시각화
                 if fig is not None:
-                    st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
                         
@@ -1760,7 +1761,7 @@ def show_teacher_page():
                         
                         # 어휘 수준 평가
                 if vocab_level:
-                 level_df = pd.DataFrame({
+                    level_df = pd.DataFrame({
                             '수준': ['기초', '중급', '고급'],
                             '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
                         })
@@ -1921,32 +1922,9 @@ def show_teacher_page():
 def main():
     # 제목 및 소개
     # st.title("영작문 자동 첨삭 시스템")
-    st.set_page_config(
-        page_title="영작문 자동 첨삭 시스템",
-        page_icon="📝",
-        layout="wide"
-    )
-    
-    # 개발 모드 설정 (관리자용)
-    if 'dev_mode' not in st.session_state:
-        st.session_state.dev_mode = False
-    
-    # 설정 섹션 (사이드바)
-    with st.sidebar:
-        st.title("영작문 자동 첨삭 시스템")
-        st.markdown("---")
-        
-        # 화면 선택
-        page = st.radio("모드 선택", ["학생용", "선생님용"])
-        
-        # 관리자 옵션 (숨겨진 설정)
-        with st.expander("고급 설정", expanded=False):
-            st.session_state.dev_mode = st.checkbox("개발 모드", value=st.session_state.dev_mode, 
-                                                 help="개발 중에만 사용. 자동 새로고침 및 디버깅 정보 제공")
-    
-    # 5분마다 자동으로 앱 새로고침 (개발 중에만 사용)
-    if st.session_state.get('dev_mode', False):
-        st_autorefresh(interval=5 * 60 * 1000, key="dev_refresh")
+    st.markdown("""
+    이 애플리케이션은 학생들의 영작문을 자동으로 첨삭하고 피드백을 제공합니다.
+    """)
     
     # 직접 학생 페이지로 이동
     show_student_page()
