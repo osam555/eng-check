@@ -554,55 +554,59 @@ def rewrite_similar_level(text):
     return ' '.join(rewritten)
 
 def rewrite_improved_level(text):
-    """약간 향상된 수준으로 텍스트 재작성 - 중급 동의어로 대체하고 구문 개선"""
+    """
+    입력 텍스트를 약간 향상된 수준으로 재작성합니다.
+    """
+    if not text:
+        return ""
+    
+    # 문장으로 분할
     sentences = custom_sent_tokenize(text)
-    rewritten = []
+    improved_sentences = []
     
-    # 중급 동의어 사전
-    intermediate_synonyms = {
-        'good': ['beneficial', 'favorable', 'quality'],
-        'bad': ['negative', 'inferior', 'flawed'],
-        'big': ['significant', 'considerable', 'extensive'],
-        'small': ['minimal', 'limited', 'minor'],
-        'say': ['state', 'mention', 'express'],
-        'think': ['believe', 'consider', 'reflect'],
-        'important': ['essential', 'significant', 'crucial']
-    }
-    
-    # 개선할 구문 패턴
-    phrase_patterns = {
-        r'\bi think\b': ['In my opinion', 'I believe', 'From my perspective'],
-        r'\ba lot\b': ['considerably', 'significantly', 'substantially'],
-        r'\bvery\b': ['notably', 'particularly', 'especially']
+    # 향상된 동의어
+    improved_synonyms = {
+        # 일반 형용사
+        "good": ["excellent", "great", "wonderful", "remarkable", "favorable"],
+        "bad": ["poor", "unfavorable", "negative", "substandard", "inadequate"],
+        "big": ["large", "substantial", "considerable", "significant", "extensive"],
+        "small": ["minor", "modest", "limited", "slight", "minimal"],
+        
+        # 일반 동사
+        "said": ["stated", "mentioned", "noted", "expressed", "communicated"],
+        "make": ["create", "produce", "generate", "develop", "establish"],
+        "get": ["obtain", "acquire", "gain", "attain", "procure"],
+        "use": ["utilize", "employ", "apply", "implement", "leverage"],
+        
+        # 추가 형용사
+        "important": ["significant", "essential", "crucial", "vital", "fundamental"],
+        "interesting": ["engaging", "captivating", "intriguing", "fascinating", "compelling"],
+        "difficult": ["challenging", "demanding", "arduous", "strenuous", "complex"],
+        "easy": ["straightforward", "uncomplicated", "effortless", "simple", "manageable"]
     }
     
     for sentence in sentences:
-        # 동의어 교체
+        # 문장 내 단어 처리
         words = custom_word_tokenize(sentence)
-        new_words = []
+        for i, word in enumerate(words):
+            word_lower = word.lower()
+            
+            # 동의어 교체 (확률적으로 교체)
+            if word_lower in improved_synonyms and random.random() < 0.4:
+                replacement = random.choice(improved_synonyms[word_lower])
+                
+                # 원래 단어가 대문자로 시작하면 교체 단어도 대문자로 시작
+                if word[0].isupper() and isinstance(replacement, str):
+                    replacement = replacement.capitalize()
+                
+                words[i] = replacement
+        
+        # 문장 재구성
+        improved_sentence = ' '.join(words)
+        improved_sentences.append(improved_sentence)
     
-    for word in words:
-        word_lower = word.lower()
-            # 30% 확률로 중급 동의어 교체 시도
-        if word_lower in intermediate_synonyms and random.random() < 0.3:
-                replacement = random.choice(intermediate_synonyms[word_lower])
-            # 대문자 보존
-        if word[0].isupper():
-                replacement = replacement.capitalize()
-                new_words.append(replacement)
-        else:
-                new_words.append(word)
-        
-        improved = ' '.join(new_words)
-        
-        # 구문 패턴 개선
-        for pattern, replacements in phrase_patterns.items():
-            if re.search(pattern, improved, re.IGNORECASE) and random.random() < 0.4:
-                improved = re.sub(pattern, random.choice(replacements), improved, flags=re.IGNORECASE)
-        
-        rewritten.append(improved)
-    
-    return ' '.join(rewritten)
+    # 재작성된 텍스트 반환
+    return ' '.join(improved_sentences)
 
 def rewrite_advanced_level(text):
     """고급 수준으로 텍스트 재작성 - 고급 어휘와 표현으로 변환"""
@@ -790,7 +794,7 @@ def show_student_page():
                                     # 세션 상태에 오디오 파일 경로 저장
                                     st.session_state[audio_key] = audio_path
                                     st.session_state[f"{audio_key}_playing"] = True
-                                    st.experimental_rerun()
+                                    st.rerun()
                                 except Exception as e:
                                     st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
                         else:
@@ -801,7 +805,7 @@ def show_student_page():
                     if st.button(button_label, key=f"toggle_audio_tab1", use_container_width=True):
                         # 토글 상태 변경
                         st.session_state[f"{audio_key}_playing"] = not st.session_state[f"{audio_key}_playing"]
-                        st.experimental_rerun()
+                        st.rerun()
                     
                     # 오디오 플레이어 표시 (현재 페이지 위치에 표시)
                     if st.session_state[f"{audio_key}_playing"]:
@@ -1102,7 +1106,7 @@ def show_student_page():
                                         # 세션 상태에 오디오 파일 경로 저장
                                         st.session_state.audio_path = audio_path
                                         st.success("음성 파일이 생성되었습니다!")
-                                        st.experimental_rerun()  # 재실행하여 오디오 플레이어 표시
+                                        st.rerun()  # 재실행하여 오디오 플레이어 표시
                                     except Exception as e:
                                         st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
             
@@ -1123,7 +1127,7 @@ def show_student_page():
                             if st.button(button_label, key="toggle_audio"):
                                 # 토글 상태 변경
                                 st.session_state.audio_playing = not st.session_state.audio_playing
-                                st.experimental_rerun()
+                                st.rerun()
                             
                             # 현재 상태에 따라 오디오 플레이어 표시
                             if st.session_state.audio_playing:
