@@ -344,7 +344,32 @@ def plot_word_frequency(word_freq):
 # 학생 페이지
 def evaluate_vocabulary_level(text):
     # 온라인 데이터셋에서 어휘 로드
-    vocabulary_sets = load_vocabulary_datasets()
+    vocabulary_sets = default_vocabulary_sets()
+    
+    # 온라인 데이터셋 로드 시도
+    try:
+        import requests
+        
+        # 영어 단어 빈도 데이터 다운로드
+        word_freq_url = "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/en/en_50k.txt"
+        response = requests.get(word_freq_url)
+        if response.status_code == 200:
+            # 단어 빈도 데이터 파싱 (형식: "단어 빈도")
+            lines = response.text.splitlines()
+            words = [line.split()[0] for line in lines if ' ' in line]
+            
+            # 빈도에 따라 단어 분류
+            total_words = len(words)
+            basic_cutoff = int(total_words * 0.2)  # 상위 20%
+            intermediate_cutoff = int(total_words * 0.5)  # 상위 20~50%
+            
+            basic_words = set(words[:basic_cutoff])
+            intermediate_words = set(words[basic_cutoff:intermediate_cutoff])
+            advanced_words = set(words[intermediate_cutoff:])
+            
+            vocabulary_sets = {'basic': basic_words, 'intermediate': intermediate_words, 'advanced': advanced_words}
+    except Exception as e:
+        pass
     
     words = custom_word_tokenize(text.lower())
     words = [word for word in words if re.match(r'\w+', word)]
