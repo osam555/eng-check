@@ -6,3 +6,6 @@ matplotlib
 plotly
 textblob
 openpyxl
+spacy
+transformers
+pyenchant
