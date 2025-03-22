@@ -10,3 +10,4 @@ spacy
 transformers
 pyenchant
 pyspellchecker
+edge-tts
