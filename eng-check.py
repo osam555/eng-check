@@ -642,7 +642,7 @@ def check_additional_patterns(text):
     
     for sentence in sentences:
         # 전치사 누락 패턴: "impeachment the" -> "impeachment of the"
-        pattern_impeachment = r'impeachment\s+the'
+        pattern_impeachment = r'\bimpeachment\s+the\b'
         matches = re.finditer(pattern_impeachment, sentence, re.IGNORECASE)
         for match in matches:
             start_in_sentence = match.start()
@@ -650,7 +650,7 @@ def check_additional_patterns(text):
             start_in_text = text.find(sentence, current_pos) + start_in_sentence
             
             if start_in_text >= 0:
-                                errors.append({
+                errors.append({
                     'message': "전치사 누락: 'impeachment the' → 'impeachment of the'",
                     'offset': start_in_text,
                     'length': length,
@@ -659,8 +659,8 @@ def check_additional_patterns(text):
                     'context': sentence
                 })
         
-        # 불완전 문장 패턴: "has serious" 다음에 명사가 없는 경우
-        pattern_incomplete = r'has\s+serious\s*$'
+        # 불완전 문장 패턴: "has serious" 다음에 명사가 없거나 불충분한 경우
+        pattern_incomplete = r'has\s+serious(?:\s+(?!consequences|implications|impact|effects|issues|problems)\w+)?(?:\s*[,.;]|\s+(?:and|but|or)|\s*$)'
         matches = re.finditer(pattern_incomplete, sentence, re.IGNORECASE)
         for match in matches:
             start_in_sentence = match.start()
@@ -668,7 +668,7 @@ def check_additional_patterns(text):
             start_in_text = text.find(sentence, current_pos) + start_in_sentence
             
             if start_in_text >= 0:
-                                        errors.append({
+                errors.append({
                     'message': "불완전 문장: 명사가 필요합니다. 'has serious' → 'has serious consequences'",
                     'offset': start_in_text,
                     'length': length,
@@ -679,7 +679,7 @@ def check_additional_patterns(text):
         
         # 기타 전치사 누락 패턴들
         # "related to" 다음에 "the"가 오는 경우 체크
-        pattern_related = r'related\s+the'
+        pattern_related = r'\brelated\s+the\b'
         matches = re.finditer(pattern_related, sentence, re.IGNORECASE)
         for match in matches:
             start_in_sentence = match.start()
@@ -687,7 +687,7 @@ def check_additional_patterns(text):
             start_in_text = text.find(sentence, current_pos) + start_in_sentence
             
             if start_in_text >= 0:
-                                            errors.append({
+                errors.append({
                     'message': "전치사 누락: 'related the' → 'related to the'",
                     'offset': start_in_text,
                     'length': length,
