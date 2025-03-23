@@ -2,6 +2,16 @@ import streamlit as st
 import spacy
 import transformers
 
+# PyTorch와 Streamlit 간 충돌 해결
+try:
+    import torch
+    import os
+    # torch.classes.__path__ 설정으로 오류 방지
+    if hasattr(torch, 'classes') and hasattr(torch.classes, '__path__'):
+        torch.classes.__path__ = []
+except ImportError:
+    pass
+
 # 페이지 설정 (가장 먼저 호출해야 함)
 st.set_page_config(
     page_title="영작문 자동 첨삭 시스템",
