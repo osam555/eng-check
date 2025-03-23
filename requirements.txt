@@ -12,4 +12,3 @@ language-tool-python
 edge-tts
 spellchecker
 sapling-py
-en-core-web-sm
