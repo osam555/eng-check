@@ -1205,26 +1205,26 @@ def show_student_page():
                 if st.session_state[audio_key] is None:
                     if st.button("📢 영작문 듣기", key=f"generate_audio_tab1", use_container_width=True):
                         if user_text.strip():  # 텍스트가 있는 경우에만 실행
-                    with st.spinner("음성 파일을 생성 중입니다..."):
-                        try:
-                            # 음성 파일 생성
-                            voice_model = "en-US-JennyNeural"  # 기본 Jenny 음성 사용
-                            
-                            # 임시 파일 경로 생성
-                            temp_dir = tempfile.gettempdir()
-                            audio_file_path = os.path.join(temp_dir, f"speech_tab1_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
-                            
-                            # 동기식 래퍼 함수를 사용하여 음성 파일 생성
-                            audio_path = sync_text_to_speech(user_text, voice_model, audio_file_path)
-                            
-                            # 세션 상태에 오디오 파일 경로 저장
-                            st.session_state[audio_key] = audio_path
-                            st.session_state[f"{audio_key}_playing"] = True
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
+                            with st.spinner("음성 파일을 생성 중입니다..."):
+                                try:
+                                # 음성 파일 생성
+                                    voice_model = "en-US-JennyNeural"  # 기본 Jenny 음성 사용
+                                
+                                # 임시 파일 경로 생성
+                                    temp_dir = tempfile.gettempdir()
+                                    audio_file_path = os.path.join(temp_dir, f"speech_tab1_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
+                                
+                                # 동기식 래퍼 함수를 사용하여 음성 파일 생성
+                                    audio_path = sync_text_to_speech(user_text, voice_model, audio_file_path)
+                                
+                                # 세션 상태에 오디오 파일 경로 저장
+                                    st.session_state[audio_key] = audio_path
+                                    st.session_state[f"{audio_key}_playing"] = True
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
                         else:
-                    st.warning("텍스트를 먼저 입력해주세요.")
+                          st.warning("텍스트를 먼저 입력해주세요.")
                 else:
                     # 토글 버튼 로직
                     button_label = "⏹️ 음성 정지" if st.session_state[f"{audio_key}_playing"] else "▶️ 음성 재생"
@@ -1336,7 +1336,7 @@ def show_student_page():
                     st.markdown("### 오류 세부 사항")
                     for error in error_details:
                         with st.expander(f"오류 {error['id']}: {error['text']}"):
-                    st.write(f"**메시지:** {error['message']}")
+                          st.write(f"**메시지:** {error['message']}")
                     if error['replacements']:
                         # 문자열 변환 과정 추가
                         suggestions = []
@@ -1354,8 +1354,8 @@ def show_student_page():
                     audio_path = st.session_state[audio_key]
                     if os.path.exists(audio_path):
                         with st.expander("음성 파일 다운로드"):
-                    with open(audio_path, "rb") as f:
-                        audio_bytes = f.read()
+                            with open(audio_path, "rb") as f:
+                             audio_bytes = f.read()
                     
                     st.download_button(
                         label="음성 다운로드",
@@ -1481,7 +1481,7 @@ def show_student_page():
                         
                         # 재작성된 텍스트를 세션 상태에 저장
                         if 'rewritten_text' not in st.session_state:
-                    st.session_state.rewritten_text = {}
+                         st.session_state.rewritten_text = {}
                         
                         st.session_state.rewritten_text[level] = rewritten_text
                         
@@ -1522,7 +1522,7 @@ def show_student_page():
                     with col1:
                         # 텍스트 다운로드 버튼
                       if rewritten:
-                    text_output = io.BytesIO()
+                        text_output = io.BytesIO()
                     text_output.write(rewritten.encode('utf-8'))
                     text_output.seek(0)
                         
@@ -1536,40 +1536,40 @@ def show_student_page():
                     with col2:
                         # 음성 파일 다운로드 버튼
                         if rewritten:
-                    if st.button("음성 파일 생성", key="generate_speech"):
-                        with st.spinner("음성 파일을 생성 중입니다..."):
-                            try:
-                                # 선택된 음성 모델 가져오기
-                                voice_model = voice_options[selected_voice]
-                                
-                                # 임시 파일 경로 생성
-                                temp_dir = tempfile.gettempdir()
-                                audio_file_path = os.path.join(temp_dir, f"speech_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
-                                
-                                # 동기식 래퍼 함수를 사용하여 음성 파일 생성
-                                audio_path = sync_text_to_speech(rewritten, voice_model, audio_file_path)
-                                
-                                # 세션 상태에 오디오 파일 경로 저장
-                                st.session_state.audio_path = audio_path
-                                st.success("음성 파일이 생성되었습니다!")
-                                st.rerun()  # 재실행하여 오디오 플레이어 표시
-                            except Exception as e:
-                                st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
-            
+                            if st.button("음성 파일 생성", key="generate_speech"):
+                                with st.spinner("음성 파일을 생성 중입니다..."):
+                                    try:
+                                        # 선택된 음성 모델 가져오기
+                                        voice_model = voice_options[selected_voice]
+                                        
+                                        # 임시 파일 경로 생성
+                                        temp_dir = tempfile.gettempdir()
+                                        audio_file_path = os.path.join(temp_dir, f"speech_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
+                                        
+                                        # 동기식 래퍼 함수를 사용하여 음성 파일 생성
+                                        audio_path = sync_text_to_speech(rewritten, voice_model, audio_file_path)
+                                        
+                                        # 세션 상태에 오디오 파일 경로 저장
+                                        st.session_state.audio_path = audio_path
+                                        st.success("음성 파일이 생성되었습니다!")
+                                        st.rerun()  # 재실행하여 오디오 플레이어 표시
+                                    except Exception as e:
+                                        st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
+                    
                     # 오디오 플레이어 표시
                     if 'audio_path' in st.session_state and os.path.exists(st.session_state.audio_path):
                         st.subheader("본문 듣기")
                         
                         # 오디오 재생 상태 관리
                         if 'audio_playing' not in st.session_state:
-                    st.session_state.audio_playing = True
+                            st.session_state.audio_playing = True
                         
                         # 본문 듣기 토글 버튼
                         play_col, download_col = st.columns([3, 1])
                         
                         with play_col:
                     # 토글 버튼 로직
-                    button_label = "⏹️ 음성 정지" if st.session_state.audio_playing else "▶️ 음성 재생"
+                             button_label = "⏹️ 음성 정지" if st.session_state.audio_playing else "▶️ 음성 재생"
                     if st.button(button_label, key="toggle_audio"):
                         # 토글 상태 변경
                         st.session_state.audio_playing = not st.session_state.audio_playing
@@ -1581,8 +1581,8 @@ def show_student_page():
                         st.markdown(audio_html, unsafe_allow_html=True)
                         
                         with download_col:
-                    with open(st.session_state.audio_path, "rb") as f:
-                        audio_bytes = f.read()
+                          with open(st.session_state.audio_path, "rb") as f:
+                            audio_bytes = f.read()
                     
                     # 음성 파일 다운로드 버튼
                     st.download_button(
@@ -1602,13 +1602,13 @@ def show_student_page():
                         
                         # 문장 단위로 비교 (더 짧은 리스트 기준)
                         for i in range(min(len(original_sentences), len(rewritten_sentences))):
-                    comparison_data.append({
+                          comparison_data.append({
                         "원본": original_sentences[i],
                         "재작성": rewritten_sentences[i]
                     })
                         
                         if comparison_data:
-                    st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
+                          st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
             else:
                 st.info("텍스트를 입력하고 재작성 버튼을 클릭하세요.")
     
@@ -1656,9 +1656,9 @@ def show_teacher_page():
                     else:
                         # 문법 오류 검사
                         try:
-                    grammar_errors = check_grammar(user_text)
+                            grammar_errors = check_grammar(user_text)
                         except Exception as e:
-                    st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
+                            st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
                     grammar_errors = []
                     
                     # 어휘 분석
@@ -1732,7 +1732,7 @@ def show_teacher_page():
                     st.markdown("### 오류 세부 사항")
                     for error in error_details:
                         with st.expander(f"오류 {error['id']}: {error['text']}"):
-                    st.write(f"**메시지:** {error['message']}")
+                            st.write(f"**메시지:** {error['message']}")
                     if error['replacements']:
                         # 문자열 변환 과정 추가
                         suggestions = []
@@ -1750,8 +1750,8 @@ def show_teacher_page():
                     audio_path = st.session_state[audio_key]
                     if os.path.exists(audio_path):
                         with st.expander("음성 파일 다운로드"):
-                    with open(audio_path, "rb") as f:
-                        audio_bytes = f.read()
+                            with open(audio_path, "rb") as f:
+                                audio_bytes = f.read()
                     
                     st.download_button(
                         label="음성 다운로드",
