@@ -10,7 +10,7 @@ spacy==3.8.4
 textblob==0.19.0
 language-tool-python==2.9.0
 edge-tts==7.0.0
-grammar-check
+grammar-check==1.0
 spellchecker
 sapling-py
 en-core-web-sm
