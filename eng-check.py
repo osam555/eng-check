@@ -12,6 +12,13 @@ try:
 except ImportError:
     pass
 
+# Sapling API 가져오기 시도
+try:
+    from sapling import SaplingClient
+    has_sapling = True
+except ImportError:
+    has_sapling = False
+
 # 페이지 설정 (가장 먼저 호출해야 함)
 st.set_page_config(
     page_title="영작문 자동 첨삭 시스템",
@@ -299,7 +306,7 @@ def get_language_tool():
         return language_tool_python.LanguageTool('en-US')
     except Exception as e:
         st.error(f"LanguageTool 초기화 오류: {str(e)}")
-        return None
+    return None
 
 # GrammarBot 검사기 초기화 함수
 def get_grammar_bot():
@@ -593,7 +600,7 @@ def check_grammar(text):
             word_start = text.find(word)
             if word_start == -1:
                 continue
-                
+            
             all_errors.append({
                 'message': f"철자 오류: '{word}'",
                 'offset': word_start,
@@ -604,6 +611,14 @@ def check_grammar(text):
             })
     except Exception as e:
         st.error(f"철자 검사 오류: {str(e)}")
+    
+    # Sapling API 검사 추가
+    if has_sapling:
+        try:
+            sapling_errors = check_grammar_with_sapling(text)
+            all_errors.extend(sapling_errors)
+        except Exception as e:
+            st.error(f"Sapling 문법 검사 오류: {str(e)}")
     
     # Gramformer 검사 추가 (전체 문장 교정)
     if has_gramformer:
@@ -660,7 +675,7 @@ def check_additional_patterns(text):
             start_in_text = text.find(sentence, current_pos) + start_in_sentence
             
             if start_in_text >= 0:
-                errors.append({
+                        errors.append({
                     'message': "전치사 누락: 'impeachment the' → 'impeachment of the'",
                     'offset': start_in_text,
                     'length': length,
@@ -678,7 +693,7 @@ def check_additional_patterns(text):
             start_in_text = text.find(sentence, current_pos) + start_in_sentence
             
             if start_in_text >= 0:
-                errors.append({
+                                errors.append({
                     'message': "불완전 문장: 명사가 필요합니다. 'has serious' → 'has serious consequences'",
                     'offset': start_in_text,
                     'length': length,
@@ -697,7 +712,7 @@ def check_additional_patterns(text):
             start_in_text = text.find(sentence, current_pos) + start_in_sentence
             
             if start_in_text >= 0:
-                errors.append({
+                                    errors.append({
                     'message': "전치사 누락: 'related the' → 'related to the'",
                     'offset': start_in_text,
                     'length': length,
@@ -764,8 +779,8 @@ def display_grammar_errors(text, errors):
         
         # 오류 텍스트를 강조 표시 (툴팁 포함)
         html_parts.append(f'<span class="grammar-error" title="오류 {error_num}: {message}" '
-                          f'style="background-color: #ffcccc; text-decoration: underline wavy red;">'
-                          f'{error_text}</span>')
+                  f'style="background-color: #ffcccc; text-decoration: underline wavy red;">'
+                  f'{error_text}</span>')
         
         # 다음 시작 위치 설정
         last_end = offset + length
@@ -946,64 +961,57 @@ def rewrite_similar_level(text):
     
     # 간단한 동의어 사전
     synonyms = {
-        'good': ['nice', 'fine', 'decent'],
-        'bad': ['poor', 'unfortunate', 'unpleasant'],
-        'big': ['large', 'sizable', 'substantial'],
-        'small': ['little', 'tiny', 'slight'],
-        'happy': ['glad', 'pleased', 'content'],
-        'sad': ['unhappy', 'down', 'blue']
+        'good': ['nice', 'fine', 'great'],
+        'bad': ['poor', 'awful', 'terrible'],
+        'big': ['large', 'huge', 'enormous'],
+        'small': ['tiny', 'little', 'miniature'],
+        'happy': ['glad', 'pleased', 'delighted'],
+        'sad': ['unhappy', 'upset', 'sorrowful']
     }
     
     for sentence in sentences:
         words = custom_word_tokenize(sentence)
         new_words = []
-    
+        
         for word in words:
             word_lower = word.lower()
             # 20% 확률로 동의어 교체 시도
             if word_lower in synonyms and random.random() < 0.2:
                 replacement = random.choice(synonyms[word_lower])
-            # 대문자 보존
-            if word[0].isupper():
-                replacement = replacement.capitalize()
+                # 대문자 보존
+                if word[0].isupper():
+                    replacement = replacement.capitalize()
                 new_words.append(replacement)
-        else:
-            new_words.append(word)
+            else:
+                new_words.append(word)
         
         rewritten.append(' '.join(new_words))
     
     return ' '.join(rewritten)
 
 def rewrite_improved_level(text):
-    """
-    입력 텍스트를 약간 향상된 수준으로 재작성합니다.
-    """
-    if not text:
-        return ""
-    
-    # 문장으로 분할
+    """조금 향상된 수준으로 텍스트 재작성 - 더 수준 높은 단어로 대체"""
     sentences = custom_sent_tokenize(text)
-    improved_sentences = []
+    rewritten_sentences = []
     
-    # 향상된 동의어
+    # 향상된 동의어 사전 - 기본 단어를 더 수준 높은 단어로 대체
     improved_synonyms = {
-        # 일반 형용사
-        "good": ["excellent", "great", "wonderful", "remarkable", "favorable"],
-        "bad": ["poor", "unfavorable", "negative", "substandard", "inadequate"],
-        "big": ["large", "substantial", "considerable", "significant", "extensive"],
-        "small": ["minor", "modest", "limited", "slight", "minimal"],
-        
-        # 일반 동사
-        "said": ["stated", "mentioned", "noted", "expressed", "communicated"],
-        "make": ["create", "produce", "generate", "develop", "establish"],
-        "get": ["obtain", "acquire", "gain", "attain", "procure"],
-        "use": ["utilize", "employ", "apply", "implement", "leverage"],
-        
-        # 추가 형용사
-        "important": ["significant", "essential", "crucial", "vital", "fundamental"],
-        "interesting": ["engaging", "captivating", "intriguing", "fascinating", "compelling"],
-        "difficult": ["challenging", "demanding", "arduous", "strenuous", "complex"],
-        "easy": ["straightforward", "uncomplicated", "effortless", "simple", "manageable"]
+        'good': ['excellent', 'exceptional', 'outstanding'],
+        'bad': ['inadequate', 'substandard', 'deficient'],
+        'big': ['substantial', 'considerable', 'significant'],
+        'small': ['diminutive', 'modest', 'slight'],
+        'happy': ['ecstatic', 'jubilant', 'elated'],
+        'sad': ['melancholy', 'despondent', 'dejected'],
+        'use': ['utilize', 'employ', 'leverage'],
+        'make': ['create', 'produce', 'generate'],
+        'think': ['contemplate', 'consider', 'reflect'],
+        'show': ['demonstrate', 'illustrate', 'exhibit'],
+        'tell': ['inform', 'convey', 'articulate'],
+        'get': ['acquire', 'obtain', 'procure'],
+        'look': ['examine', 'inspect', 'scrutinize'],
+        'want': ['desire', 'wish', 'aspire'],
+        'ask': ['inquire', 'request', 'solicit'],
+        'see': ['observe', 'perceive', 'witness']
     }
     
     for sentence in sentences:
@@ -1019,15 +1027,12 @@ def rewrite_improved_level(text):
                 # 원래 단어가 대문자로 시작하면 교체 단어도 대문자로 시작
                 if word[0].isupper() and isinstance(replacement, str):
                     replacement = replacement.capitalize()
-            
+                
                 words[i] = replacement
         
-        # 문장 재구성
-        improved_sentence = ' '.join(words)
-        improved_sentences.append(improved_sentence)
+        rewritten_sentences.append(' '.join(words))
     
-    # 재작성된 텍스트 반환
-    return ' '.join(improved_sentences)
+    return ' '.join(rewritten_sentences)
 
 def rewrite_advanced_level(text):
     """고급 수준으로 텍스트 재작성 - 고급 어휘와 표현으로 변환"""
@@ -1200,26 +1205,26 @@ def show_student_page():
                 if st.session_state[audio_key] is None:
                     if st.button("📢 영작문 듣기", key=f"generate_audio_tab1", use_container_width=True):
                         if user_text.strip():  # 텍스트가 있는 경우에만 실행
-                            with st.spinner("음성 파일을 생성 중입니다..."):
-                                try:
-                                    # 음성 파일 생성
-                                    voice_model = "en-US-JennyNeural"  # 기본 Jenny 음성 사용
-                                    
-                                    # 임시 파일 경로 생성
-                                    temp_dir = tempfile.gettempdir()
-                                    audio_file_path = os.path.join(temp_dir, f"speech_tab1_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
-                                    
-                                    # 동기식 래퍼 함수를 사용하여 음성 파일 생성
-                                    audio_path = sync_text_to_speech(user_text, voice_model, audio_file_path)
-                                    
-                                    # 세션 상태에 오디오 파일 경로 저장
-                                    st.session_state[audio_key] = audio_path
-                                    st.session_state[f"{audio_key}_playing"] = True
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
+                    with st.spinner("음성 파일을 생성 중입니다..."):
+                        try:
+                            # 음성 파일 생성
+                            voice_model = "en-US-JennyNeural"  # 기본 Jenny 음성 사용
+                            
+                            # 임시 파일 경로 생성
+                            temp_dir = tempfile.gettempdir()
+                            audio_file_path = os.path.join(temp_dir, f"speech_tab1_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
+                            
+                            # 동기식 래퍼 함수를 사용하여 음성 파일 생성
+                            audio_path = sync_text_to_speech(user_text, voice_model, audio_file_path)
+                            
+                            # 세션 상태에 오디오 파일 경로 저장
+                            st.session_state[audio_key] = audio_path
+                            st.session_state[f"{audio_key}_playing"] = True
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
                         else:
-                            st.warning("텍스트를 먼저 입력해주세요.")
+                    st.warning("텍스트를 먼저 입력해주세요.")
                 else:
                     # 토글 버튼 로직
                     button_label = "⏹️ 음성 정지" if st.session_state[f"{audio_key}_playing"] else "▶️ 음성 재생"
@@ -1273,12 +1278,12 @@ def show_student_page():
                         'vocab_level': vocab_level,
                         'original_text': user_text  # 원본 텍스트도 저장
                     }
-                            
-                            # 기록에 저장
+                    
+                    # 기록에 저장
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     st.session_state.history.append({
-                                'timestamp': timestamp,
-                                'text': user_text,
+                        'timestamp': timestamp,
+                        'text': user_text,
                         'error_count': len(grammar_errors) if grammar_errors else 0
                     })
                     
@@ -1293,10 +1298,10 @@ def show_student_page():
             # 분석 결과가 있는 경우에만 버튼 표시
             if 'analysis_results' in st.session_state and 'original_text' in st.session_state.analysis_results:
                 if st.button("✨ 영작문 재작성 추천 ✨", 
-                          key="rewrite_recommendation",
-                          use_container_width=True,
-                          help="분석 결과를 바탕으로 영작문을 더 좋은 표현으로 재작성해보세요!",
-                          type="primary"):
+                  key="rewrite_recommendation",
+                  use_container_width=True,
+                  help="분석 결과를 바탕으로 영작문을 더 좋은 표현으로 재작성해보세요!",
+                  type="primary"):
                     # 텍스트를 세션 상태에 저장
                     st.session_state.copy_to_rewrite = st.session_state.analysis_results['original_text']
                     
@@ -1331,14 +1336,14 @@ def show_student_page():
                     st.markdown("### 오류 세부 사항")
                     for error in error_details:
                         with st.expander(f"오류 {error['id']}: {error['text']}"):
-                            st.write(f"**메시지:** {error['message']}")
-                            if error['replacements']:
-                                # 문자열 변환 과정 추가
-                                suggestions = []
-                                for r in error['replacements'][:3]:  # 최대 3개만 표시
-                                    if isinstance(r, str):
-                                        suggestions.append(r)
-                                st.write(f"**수정 제안:** {', '.join(suggestions)}")
+                    st.write(f"**메시지:** {error['message']}")
+                    if error['replacements']:
+                        # 문자열 변환 과정 추가
+                        suggestions = []
+                        for r in error['replacements'][:3]:  # 최대 3개만 표시
+                            if isinstance(r, str):
+                                suggestions.append(r)
+                        st.write(f"**수정 제안:** {', '.join(suggestions)}")
                 
                 # 오류 통계
                 st.write(f"총 {len(grammar_errors)}개의 문법/맞춤법 오류가 발견되었습니다.")
@@ -1349,15 +1354,15 @@ def show_student_page():
                     audio_path = st.session_state[audio_key]
                     if os.path.exists(audio_path):
                         with st.expander("음성 파일 다운로드"):
-                            with open(audio_path, "rb") as f:
-                                audio_bytes = f.read()
-                            
-                            st.download_button(
-                                label="음성 다운로드",
-                                data=audio_bytes,
-                                file_name=f"audio_essay_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
-                                mime="audio/wav"
-                            )
+                    with open(audio_path, "rb") as f:
+                        audio_bytes = f.read()
+                    
+                    st.download_button(
+                        label="음성 다운로드",
+                        data=audio_bytes,
+                        file_name=f"audio_essay_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
+                        mime="audio/wav"
+                    )
         
         with result_tab2:
             if 'analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.analysis_results:
@@ -1380,18 +1385,18 @@ def show_student_page():
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
-                
+                        
                 # 어휘 수준 평가
                 if 'vocab_level' in st.session_state.analysis_results:
                     vocab_level = st.session_state.analysis_results['vocab_level']
                     if vocab_level:
                         level_df = pd.DataFrame({
-                            '수준': ['기초', '중급', '고급'],
-                            '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
+                    '수준': ['기초', '중급', '고급'],
+                    '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
                         })
                         
                         fig = px.pie(level_df, values='비율', names='수준', 
-                                title='어휘 수준 분포')
+                        title='어휘 수준 분포')
                         st.plotly_chart(fig, use_container_width=True)
                     else:
                         st.info("어휘 수준 평가를 위한 데이터가 충분하지 않습니다.")
@@ -1448,9 +1453,9 @@ def show_student_page():
                 default_text = st.session_state.copy_to_rewrite_temp
             
             rewrite_text_input = st.text_area("아래에 영어 작문을 입력하세요", 
-                                            value=default_text,
-                                            height=200, 
-                                            key="text_tab2")
+                                    value=default_text,
+                                    height=200, 
+                                    key="text_tab2")
             
             level_option = st.radio(
                 "작문 수준 선택",
@@ -1476,16 +1481,16 @@ def show_student_page():
                         
                         # 재작성된 텍스트를 세션 상태에 저장
                         if 'rewritten_text' not in st.session_state:
-                            st.session_state.rewritten_text = {}
+                    st.session_state.rewritten_text = {}
                         
                         st.session_state.rewritten_text[level] = rewritten_text
                         
                         # 기록에 추가
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         st.session_state.history.append({
-                            'timestamp': timestamp,
-                            'text': rewrite_text_input,
-                            'action': f"재작성 ({level_option})"
+                    'timestamp': timestamp,
+                    'text': rewrite_text_input,
+                    'action': f"재작성 ({level_option})"
                         })
         
         with right_col:
@@ -1516,40 +1521,40 @@ def show_student_page():
                     
                     with col1:
                         # 텍스트 다운로드 버튼
-                        if rewritten:
-                            text_output = io.BytesIO()
-                            text_output.write(rewritten.encode('utf-8'))
-                            text_output.seek(0)
+                      if rewritten:
+                    text_output = io.BytesIO()
+                    text_output.write(rewritten.encode('utf-8'))
+                    text_output.seek(0)
                         
-                            st.download_button(
-                                label="텍스트 다운로드",
-                                data=text_output,
-                            file_name=f"rewritten_text_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                            mime="text/plain"
+                    st.download_button(
+                        label="텍스트 다운로드",
+                        data=text_output,
+                    file_name=f"rewritten_text_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    mime="text/plain"
                         )
                     
                     with col2:
                         # 음성 파일 다운로드 버튼
                         if rewritten:
-                            if st.button("음성 파일 생성", key="generate_speech"):
-                                with st.spinner("음성 파일을 생성 중입니다..."):
-                                    try:
-                                        # 선택된 음성 모델 가져오기
-                                        voice_model = voice_options[selected_voice]
-                                        
-                                        # 임시 파일 경로 생성
-                                        temp_dir = tempfile.gettempdir()
-                                        audio_file_path = os.path.join(temp_dir, f"speech_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
-                                        
-                                        # 동기식 래퍼 함수를 사용하여 음성 파일 생성
-                                        audio_path = sync_text_to_speech(rewritten, voice_model, audio_file_path)
-                                        
-                                        # 세션 상태에 오디오 파일 경로 저장
-                                        st.session_state.audio_path = audio_path
-                                        st.success("음성 파일이 생성되었습니다!")
-                                        st.rerun()  # 재실행하여 오디오 플레이어 표시
-                                    except Exception as e:
-                                        st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
+                    if st.button("음성 파일 생성", key="generate_speech"):
+                        with st.spinner("음성 파일을 생성 중입니다..."):
+                            try:
+                                # 선택된 음성 모델 가져오기
+                                voice_model = voice_options[selected_voice]
+                                
+                                # 임시 파일 경로 생성
+                                temp_dir = tempfile.gettempdir()
+                                audio_file_path = os.path.join(temp_dir, f"speech_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav")
+                                
+                                # 동기식 래퍼 함수를 사용하여 음성 파일 생성
+                                audio_path = sync_text_to_speech(rewritten, voice_model, audio_file_path)
+                                
+                                # 세션 상태에 오디오 파일 경로 저장
+                                st.session_state.audio_path = audio_path
+                                st.success("음성 파일이 생성되었습니다!")
+                                st.rerun()  # 재실행하여 오디오 플레이어 표시
+                            except Exception as e:
+                                st.error(f"음성 생성 중 오류가 발생했습니다: {str(e)}")
             
                     # 오디오 플레이어 표시
                     if 'audio_path' in st.session_state and os.path.exists(st.session_state.audio_path):
@@ -1557,34 +1562,34 @@ def show_student_page():
                         
                         # 오디오 재생 상태 관리
                         if 'audio_playing' not in st.session_state:
-                            st.session_state.audio_playing = True
+                    st.session_state.audio_playing = True
                         
                         # 본문 듣기 토글 버튼
                         play_col, download_col = st.columns([3, 1])
                         
                         with play_col:
-                            # 토글 버튼 로직
-                            button_label = "⏹️ 음성 정지" if st.session_state.audio_playing else "▶️ 음성 재생"
-                            if st.button(button_label, key="toggle_audio"):
-                                # 토글 상태 변경
-                                st.session_state.audio_playing = not st.session_state.audio_playing
-                                st.rerun()
-                            
-                            # 현재 상태에 따라 오디오 플레이어 표시
-                            if st.session_state.audio_playing:
-                                audio_html = get_audio_player_html(st.session_state.audio_path, loop_count=5)
-                                st.markdown(audio_html, unsafe_allow_html=True)
+                    # 토글 버튼 로직
+                    button_label = "⏹️ 음성 정지" if st.session_state.audio_playing else "▶️ 음성 재생"
+                    if st.button(button_label, key="toggle_audio"):
+                        # 토글 상태 변경
+                        st.session_state.audio_playing = not st.session_state.audio_playing
+                        st.rerun()
+                    
+                    # 현재 상태에 따라 오디오 플레이어 표시
+                    if st.session_state.audio_playing:
+                        audio_html = get_audio_player_html(st.session_state.audio_path, loop_count=5)
+                        st.markdown(audio_html, unsafe_allow_html=True)
                         
                         with download_col:
-                            with open(st.session_state.audio_path, "rb") as f:
-                                audio_bytes = f.read()
-                            
-                            # 음성 파일 다운로드 버튼
-                            st.download_button(
-                                label="음성 다운로드",
-                                data=audio_bytes,
-                                file_name=f"audio_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
-                                mime="audio/wav"
+                    with open(st.session_state.audio_path, "rb") as f:
+                        audio_bytes = f.read()
+                    
+                    # 음성 파일 다운로드 버튼
+                    st.download_button(
+                        label="음성 다운로드",
+                        data=audio_bytes,
+                        file_name=f"audio_{level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
+                        mime="audio/wav"
                         )
                     
                     # 원본과 재작성 텍스트 비교
@@ -1597,13 +1602,13 @@ def show_student_page():
                         
                         # 문장 단위로 비교 (더 짧은 리스트 기준)
                         for i in range(min(len(original_sentences), len(rewritten_sentences))):
-                            comparison_data.append({
-                                "원본": original_sentences[i],
-                                "재작성": rewritten_sentences[i]
-                            })
+                    comparison_data.append({
+                        "원본": original_sentences[i],
+                        "재작성": rewritten_sentences[i]
+                    })
                         
                         if comparison_data:
-                            st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
+                    st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
             else:
                 st.info("텍스트를 입력하고 재작성 버튼을 클릭하세요.")
     
@@ -1619,8 +1624,8 @@ def show_student_page():
             # 오류 수 추이 차트
             if len(history_df) > 1 and 'error_count' in history_df.columns:
                 fig = px.line(history_df, x='timestamp', y='error_count', 
-                            title='문법 오류 수 추이',
-                            labels={'timestamp': '날짜', 'error_count': '오류 수'})
+                    title='문법 오류 수 추이',
+                    labels={'timestamp': '날짜', 'error_count': '오류 수'})
                 st.plotly_chart(fig, use_container_width=True)
 
 # 교사 페이지
@@ -1651,10 +1656,10 @@ def show_teacher_page():
                     else:
                         # 문법 오류 검사
                         try:
-                            grammar_errors = check_grammar(user_text)
+                    grammar_errors = check_grammar(user_text)
                         except Exception as e:
-                            st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
-                            grammar_errors = []
+                    st.error(f"문법 검사 중 오류가 발생했습니다: {e}")
+                    grammar_errors = []
                     
                     # 어휘 분석
                     vocab_analysis = analyze_vocabulary(user_text)
@@ -1688,10 +1693,10 @@ def show_teacher_page():
             # 분석 결과가 있는 경우에만 버튼 표시
             if 'teacher_analysis_results' in st.session_state and 'original_text' in st.session_state.teacher_analysis_results:
                 if st.button("✨ 영작문 재작성 추천 ✨", 
-                          key="teacher_rewrite_recommendation",
-                          use_container_width=True,
-                          help="분석 결과를 바탕으로 학생의 영작문을 더 좋은 표현으로 재작성해보세요!",
-                          type="primary"):
+                  key="teacher_rewrite_recommendation",
+                  use_container_width=True,
+                  help="분석 결과를 바탕으로 학생의 영작문을 더 좋은 표현으로 재작성해보세요!",
+                  type="primary"):
                     # 교사 첨삭 영역에 모범 답안 작성용으로 추가
                     # 재작성 함수를 사용하여 즉시 고급 수준으로 재작성
                     original_text = st.session_state.teacher_analysis_results['original_text']
@@ -1727,14 +1732,14 @@ def show_teacher_page():
                     st.markdown("### 오류 세부 사항")
                     for error in error_details:
                         with st.expander(f"오류 {error['id']}: {error['text']}"):
-                            st.write(f"**메시지:** {error['message']}")
-                            if error['replacements']:
-                                # 문자열 변환 과정 추가
-                                suggestions = []
-                                for r in error['replacements'][:3]:  # 최대 3개만 표시
-                                    if isinstance(r, str):
-                                        suggestions.append(r)
-                                st.write(f"**수정 제안:** {', '.join(suggestions)}")
+                    st.write(f"**메시지:** {error['message']}")
+                    if error['replacements']:
+                        # 문자열 변환 과정 추가
+                        suggestions = []
+                        for r in error['replacements'][:3]:  # 최대 3개만 표시
+                            if isinstance(r, str):
+                                suggestions.append(r)
+                        st.write(f"**수정 제안:** {', '.join(suggestions)}")
                 
                 # 오류 통계
                 st.write(f"총 {len(grammar_errors)}개의 문법/맞춤법 오류가 발견되었습니다.")
@@ -1745,15 +1750,15 @@ def show_teacher_page():
                     audio_path = st.session_state[audio_key]
                     if os.path.exists(audio_path):
                         with st.expander("음성 파일 다운로드"):
-                            with open(audio_path, "rb") as f:
-                                audio_bytes = f.read()
-                            
-                            st.download_button(
-                                label="음성 다운로드",
-                                data=audio_bytes,
-                                file_name=f"audio_essay_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
-                                mime="audio/wav"
-                            )
+                    with open(audio_path, "rb") as f:
+                        audio_bytes = f.read()
+                    
+                    st.download_button(
+                        label="음성 다운로드",
+                        data=audio_bytes,
+                        file_name=f"audio_essay_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
+                        mime="audio/wav"
+                    )
             
         with result_tab2:
             if 'teacher_analysis_results' in st.session_state and 'vocab_analysis' in st.session_state.teacher_analysis_results:
@@ -1776,18 +1781,18 @@ def show_teacher_page():
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("단어 빈도 분석을 위한 데이터가 충분하지 않습니다.")
-                
+                        
                 # 어휘 수준 평가
                 if 'vocab_level' in st.session_state.teacher_analysis_results:
                     vocab_level = st.session_state.teacher_analysis_results['vocab_level']
                     if vocab_level:
                         level_df = pd.DataFrame({
-                            '수준': ['기초', '중급', '고급'],
-                            '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
+                    '수준': ['기초', '중급', '고급'],
+                    '비율': [vocab_level['basic'], vocab_level['intermediate'], vocab_level['advanced']]
                         })
                         
                         fig = px.pie(level_df, values='비율', names='수준', 
-                                title='어휘 수준 분포')
+                            title='어휘 수준 분포')
                         st.plotly_chart(fig, use_container_width=True)
                     else:
                         st.info("어휘 수준 평가를 위한 데이터가 충분하지 않습니다.")
@@ -1818,8 +1823,8 @@ def show_teacher_page():
             feedback_default = st.session_state.feedback_template
         
         feedback = st.text_area("첨삭 노트", 
-                             value=feedback_default, 
-                             height=200,  # 더 높게 조정
+                     value=feedback_default, 
+                     height=200,  # 더 높게 조정
                  key="feedback_template")
         
         # 세션 상태 업데이트
@@ -1874,7 +1879,7 @@ def show_teacher_page():
                     stats_df = pd.DataFrame({
                         "항목": ["단어 수", "문장 수", "평균 단어 길이", "평균 문장 길이", "어휘 크기"],
                         "값": [stats['word_count'], stats['sentence_count'], stats['avg_word_length'], 
-                             stats['avg_sentence_length'], stats['vocabulary_size']]
+                     stats['avg_sentence_length'], stats['vocabulary_size']]
                     })
                     stats_df.to_excel(writer, sheet_name="통계", index=False)
                     
@@ -2040,5 +2045,46 @@ def check_grammar_with_textblob(text):
                         'rule': 'TEXTBLOB_SPELLING',
                         'context': sentence
                     })
+    
+    return errors
+
+# Sapling을 사용한 문법 검사 함수 추가
+def check_grammar_with_sapling(text):
+    """Sapling.ai API를 사용하여 문법을 체크합니다."""
+    if not has_sapling:
+        return []
+    
+    # 환경 변수나 st.secrets에서 API 키 가져오기 시도
+    api_key = os.environ.get('SAPLING_API_KEY', st.secrets.get('SAPLING_API_KEY', ''))
+    
+    if not api_key:
+        st.warning("Sapling API 키가 설정되지 않았습니다. Sapling 문법 검사를 사용하려면 API 키를 설정하세요.")
+        return []
+    
+    errors = []
+    
+    try:
+        # Sapling 클라이언트 초기화
+        client = SaplingClient(api_key=api_key)
+        
+        # 세션 ID 생성 (사용자/세션별 고유 식별자)
+        session_id = f"streamlit_session_{st.session_state.get('session_id', 'default')}"
+        
+        # 문법 오류 검사
+        edits = client.edits(text, session_id=session_id)
+        
+        # 결과 변환
+        for edit in edits:
+            errors.append({
+                'message': f"{edit.get('general_error_type', '문법 오류')}: '{text[edit['start']:edit['end']]}' → '{edit['replacement']}'",
+                'offset': edit['start'],
+                'length': edit['end'] - edit['start'],
+                'replacements': [edit['replacement']],
+                'rule': edit.get('error_type', 'SAPLING_CORRECTION'),
+                'context': edit.get('sentence', text[max(0, edit['start'] - 20):min(len(text), edit['end'] + 20)])
+            })
+    
+    except Exception as e:
+        st.error(f"Sapling API 오류: {str(e)}")
     
     return errors
